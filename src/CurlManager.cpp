@@ -18,15 +18,15 @@ CurlManager::~CurlManager() {
     curl_global_cleanup();
 }
 
+
+
 WebPage* CurlManager::get(const char* url) {
-    LOG("Sending Getting HTML from: ", url);
+    LOG("Sending GET request to: ", url);
 
     // Set the URL to request
     curl_easy_setopt(this->curl, CURLOPT_URL, url);
 
-    char *html_content = reinterpret_cast<char*>(malloc(1)); // Initial empty string
-    html_content[0] = '\0';  // Null-terminate the string
-
+    std::string html_content;
 
     // Set the callback function to handle the response data
     curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, write_callback);
@@ -36,29 +36,21 @@ WebPage* CurlManager::get(const char* url) {
     CURLcode res = curl_easy_perform(this->curl);
 
     // Check if the request was successful
-    if(res != CURLE_OK) {
+    if (res != CURLE_OK) {
         LOG("Failed to get HTML from: ", url, " - ", curl_easy_strerror(res));
-        free(html_content);
         return nullptr;
     }
 
     // Create a new WebPage object with the URL and HTML content
-    WebPage* webpage = new WebPage(url, html_content);
-
-    // Free the allocated memory for the HTML content
-    free(html_content);
-
-    return webpage;
+    return new WebPage(url, html_content.c_str());
 }
 
-size_t CurlManager::write_callback(void *ptr, size_t size, size_t nmemb, char **html_content) {
+size_t CurlManager::write_callback(void* ptr, size_t size, size_t nmemb, void* userdata) {
     size_t realsize = size * nmemb;
+    std::string* html_content = static_cast<std::string*>(userdata);
 
-    // Allocate memory for the new data
-    *html_content = reinterpret_cast<char*>(realloc(*html_content, realsize + 1));
-
-    // Append the new data to the existing data
-    strncat(*html_content, reinterpret_cast<char*>(ptr), realsize);
+    // Append received data to the string
+    html_content->append(static_cast<char*>(ptr), realsize);
 
     return realsize;
 }
