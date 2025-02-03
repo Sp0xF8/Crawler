@@ -2,9 +2,26 @@
 #include <Logger.hpp>
 #include <cstring>
 
+
+std::string tagTypeToString(TagType tag){
+    return tag_to_string.at(tag);
+}
+
+TagType stringToTagType(std::string tag_type){
+    if (string_to_tag.find(tag_type) == string_to_tag.end()){
+        return TagType::UNKNOWN;
+    }
+    return string_to_tag.at(tag_type);
+}
+
+
+
+
+
+
 void Tag::print()
 {
-    LOG("Tag: ", this->Name->c_str());
+    LOG("Tag: ", tagTypeToString(*this->Name));
     LOG("Start Open: ", *this->start_open);
     LOG("Start Close: ", *this->start_close);
     LOG("End Open: ", *this->end_open);
@@ -13,12 +30,12 @@ void Tag::print()
 
 void Tag::printChildren(int indent)
 {
-    std::string spaces = "";
+    std::string spaces = " ";
     for (int i = 0; i < indent; i++)
     {
         spaces += " ";
     }
-    LOG(spaces, "Tag: ", this->Name->c_str());
+    LOG(spaces, "Tag: ", tagTypeToString(*this->Name));
     for (Tag *child : this->Children)
     {
         child->printChildren(indent + 2);
@@ -72,7 +89,7 @@ TagParseError WebPage::parseTagTree()
     int start = -1;
 
     std::string tag;
-    std::string tag_type;
+    TagType tag_type;
 
     int start_open = 0;
     // int start_close = 0;
@@ -197,11 +214,11 @@ TagParseError WebPage::parseTagTree()
 
         if (next_space == std::string::npos || next_space > pos)
         {
-            tag_type = this->html_content->substr(start_open + 1 + start_addition, pos - start_open - start_addition - 1 - end_negation);
+            tag_type = stringToTagType(this->html_content->substr(start_open + 1 + start_addition, pos - start_open - start_addition - 1 - end_negation));
         }
         else
         {
-            tag_type = this->html_content->substr(start_open + 1 + start_addition, next_space - start_open - 1 - start_addition);
+            tag_type = stringToTagType(this->html_content->substr(start_open + 1 + start_addition, next_space - start_open - 1 - start_addition));
         }
 
         // LOG(tag_type, " is ", (
@@ -219,10 +236,44 @@ TagParseError WebPage::parseTagTree()
         if (tag_organisation == TagOrganisation::OPENING){
             // LOG("Pushed opening tag");
 
-            // switch (tag_type)
-            // {
-                
-            // }
+            switch (tag_type)
+            {
+
+
+                case TagType::META:
+                {
+                    // LOG("Found meta tag");
+                    continue;
+                    break;
+                }
+
+                case TagType::TITLE:
+                {
+                    // LOG("Found title tag");
+                    break;
+                }
+
+                case TagType::LINK:
+                case TagType::IMG:
+                case TagType::INPUT__TEXT:
+                case TagType::SCRIPT:
+                case TagType::STYLE:
+                case TagType::BR:
+                case TagType::HR:
+                case TagType::COMMENT:
+                case TagType::UNKNOWN:
+                {
+                    // LOG("Found tag: ", tag_type);
+                    continue;
+                    break;
+                }
+
+                default:
+                {
+                    break;
+                }
+
+            }
 
             SingleTag *sTag = new SingleTag(tag_type, tag, start_open, pos);
             tag_stack.push_front(sTag);
@@ -262,7 +313,7 @@ TagParseError WebPage::parseTagTree()
         // LOG("Top of stack: ", sTag->tag_type->c_str());
         // LOG("Tag ", sTag->tag->c_str());
 
-        if (strcmp(tag_type.c_str(), sTag->tag_type->c_str()) != 0)
+        if (tag_type != *sTag->tag_type)
         {
             // LOG("Closing tag: ", tag_type, " does not match opening tag: ", *sTag->tag_type);
             continue;
@@ -325,7 +376,7 @@ TagParseError WebPage::parseTagTree()
 
         for (SingleTag *sTag : tag_stack)
         {
-            LOG("Unclosed tag: ", sTag->tag_type->c_str());
+            LOG("Unclosed tag: ", tagTypeToString(*sTag->tag_type));
             delete sTag;
         }
     }
