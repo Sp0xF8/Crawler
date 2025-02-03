@@ -17,7 +17,7 @@ class CurlManager {
 
         CURL *curl;
 
-        static size_t write_callback(void *ptr, size_t size, size_t nmemb, char **html_content);
+        static size_t write_callback(void* ptr, size_t size, size_t nmemb, void* userdata);
 };
 
 extern CurlManager curl_manager;

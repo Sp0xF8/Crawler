@@ -3,6 +3,14 @@
 #include <deque>
 #include <vector>
 #include <string>
+#include <unordered_map>
+
+
+enum TagParseError
+{
+    NO_TAG_PARSE_ERROR,
+    NO_DOCTYPE
+};
 
 enum TagOrganisation
 {
@@ -12,52 +20,159 @@ enum TagOrganisation
     OPENING
 };
 
-// enum TagType
-// {
-//     HTML,
-//     HEAD,
-//     BODY,
-//     TITLE,
-//     META,
-//     LINK,
-//     SCRIPT,
-//     STYLE,
-//     DIV,
-//     SPAN,
-//     P,
-//     H1,
-//     H2,
-//     H3,
-//     H4,
-//     H5,
-//     H6,
-//     A,
-//     IMG,
-//     UL,
-//     OL,
-//     LI,
-//     TABLE,
-//     TR,
-//     TH,
-//     TD,
-//     FORM,
-//     INPUT,
-//     BUTTON,
-//     SELECT,
-//     OPTION,
-//     TEXTAREA,
-//     G,
-//     TEXT,
-//     TSPAN,
-//     TEXT_PATH,
-//     IMAGE,
-//     AUDIO,
-//     VIDEO
-// };
+enum TagType
+{
+    DOCTYPE,
+    HTML,
+    HEAD,
+    TITLE,
+    META,
+    BODY,
+    P,
+    H1,
+    H2,
+    H3,
+    H4,
+    H5,
+    H6,
+    A,
+    IMG,
+    DIV,
+    SPAN,
+    UL,
+    OL,
+    LI,
+    TABLE,
+    TR,
+    TH,
+    TD,
+    FORM,
+    INPUT__TEXT,
+    BUTTON,
+    SELECT,
+    OPTION,
+    TEXTAREA,
+    SCRIPT,
+    STYLE,
+    LINK,
+    BR,
+    HR,
+    COMMENT,
+    UNKNOWN
+};
+
+const std::unordered_map<std::string, TagType> string_to_tag = {
+    {"!DOCTYPE", DOCTYPE},
+    {"html", HTML},
+    {"head", HEAD},
+    {"title", TITLE},
+    {"meta", META},
+    {"body", BODY},
+    {"p", P},
+    {"h1", H1},
+    {"h2", H2},
+    {"h3", H3},
+    {"h4", H4},
+    {"h5", H5},
+    {"h6", H6},
+    {"a", A},
+    {"img", IMG},
+    {"div", DIV},
+    {"span", SPAN},
+    {"ul", UL},
+    {"ol", OL},
+    {"li", LI},
+    {"table", TABLE},
+    {"tr", TR},
+    {"th", TH},
+    {"td", TD},
+    {"form", FORM},
+    {"input", INPUT__TEXT},
+    {"button", BUTTON},
+    {"select", SELECT},
+    {"option", OPTION},
+    {"textarea", TEXTAREA},
+    {"script", SCRIPT},
+    {"style", STYLE},
+    {"link", LINK},
+    {"br", BR},
+    {"hr", HR},
+    {"!--", COMMENT},
+    {"unknown", UNKNOWN}
+};
+
+const std::unordered_map<TagType, std::string> tag_to_string = {
+    {DOCTYPE, "!DOCTYPE"},
+    {HTML, "html"},
+    {HEAD, "head"},
+    {TITLE, "title"},
+    {META, "meta"},
+    {BODY, "body"},
+    {P, "p"},
+    {H1, "h1"},
+    {H2, "h2"},
+    {H3, "h3"},
+    {H4, "h4"},
+    {H5, "h5"},
+    {H6, "h6"},
+    {A, "a"},
+    {IMG, "img"},
+    {DIV, "div"},
+    {SPAN, "span"},
+    {UL, "ul"},
+    {OL, "ol"},
+    {LI, "li"},
+    {TABLE, "table"},
+    {TR, "tr"},
+    {TH, "th"},
+    {TD, "td"},
+    {FORM, "form"},
+    {INPUT__TEXT, "input"},
+    {BUTTON, "button"},
+    {SELECT, "select"},
+    {OPTION, "option"},
+    {TEXTAREA, "textarea"},
+    {SCRIPT, "script"},
+    {STYLE, "style"},
+    {LINK, "link"},
+    {BR, "br"},
+    {HR, "hr"},
+    {COMMENT, "!--"},
+    {UNKNOWN, "unknown"}
+};
+
+
+std::string tagTypeToString(TagType tag_type);
+TagType stringToTagType(std::string tag_type);
+
+
+struct SingleTag
+{
+    TagType* tag_type;
+    std::string* tag;
+    int* start_open;
+    int* start_close;
+
+    SingleTag(TagType& tag_type, std::string tag, int start_open, int start_close)
+    {
+        this->tag_type = new TagType(tag_type);
+        this->tag = new std::string(tag);
+        this->start_open = new int(start_open);
+        this->start_close = new int(start_close);
+    }
+
+    ~SingleTag()
+    {
+        delete this->tag_type;
+        delete this->tag;
+        delete this->start_open;
+        delete this->start_close;
+    }
+};
 
 struct Tag
 {
-    std::string* Name;
+    TagType* Name;
 
     int* start_open;
     int* start_close;
@@ -65,13 +180,13 @@ struct Tag
     int* end_open;
     int* end_close;
 
-    std::deque<Tag*> Parents;
+    Tag* Parent;
     std::deque<Tag*> Children;
 
 
-    Tag(std::string name, int start_open, int start_close, int end_open, int end_close)
+    Tag(TagType& name, int start_open, int start_close, int end_open, int end_close)
     {
-        this->Name = new std::string(name);
+        this->Name = new TagType(name);
         this->start_open = new int(start_open);
         this->start_close = new int(start_close);
         this->end_open = new int(end_open);
@@ -94,33 +209,37 @@ struct Tag
         this->Children.clear();
     }
 
+    void print();
+    void printChildren(int indent = 0);
+
 };
 
-struct PageData
-{
-    std::string* Title;
-    std::string* Description;
-    std::deque<Tag*> Tags;
+// struct PageData
+// {
+//     std::string* Title;
+//     std::string* Description;
+//     std::deque<Tag*> Tags;
 
-    PageData()
-    {
-        this->Title = new std::string();
-        this->Description = new std::string();
-    }
+//     PageData()
+//     {
+//         this->Title = new std::string();
+//         this->Description = new std::string();
+//         this->Tags = std::deque<Tag*>();
+//     }
 
-    ~PageData()
-    {
-        delete this->Title;
-        delete this->Description;
+//     ~PageData()
+//     {
+//         delete this->Title;
+//         delete this->Description;
 
-        for (Tag* tag : this->Tags)
-        {
-            delete tag;
-        }
+//         for (Tag* tag : this->Tags)
+//         {
+//             delete tag;
+//         }
 
-        this->Tags.clear();
-    }
-};
+//         this->Tags.clear();
+//     }
+// };
 
 class WebPage
 {
@@ -133,12 +252,15 @@ class WebPage
 
     private:
 
-        std::vector<WebPage> sublinks;
         std::string* url;
+        std::string* Title;
+        std::string* Description;
         std::string* html_content;
-        PageData* page_data;
+        std::vector<WebPage> sublinks;
+        // PageData* page_data;
+        std::deque<Tag*> Tags;
 
+        TagParseError parseTagTree();
 
-        
 
 };

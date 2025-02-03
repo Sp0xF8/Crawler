@@ -2,35 +2,53 @@
 #include <Logger.hpp>
 #include <cstring>
 
-struct SingleTag
+
+std::string tagTypeToString(TagType tag){
+    return tag_to_string.at(tag);
+}
+
+TagType stringToTagType(std::string tag_type){
+    if (string_to_tag.find(tag_type) == string_to_tag.end()){
+        return TagType::UNKNOWN;
+    }
+    return string_to_tag.at(tag_type);
+}
+
+
+
+
+
+
+void Tag::print()
 {
-    std::string *tag_type;
-    std::string *tag;
-    int *start_open;
-    int *start_close;
+    LOG("Tag: ", tagTypeToString(*this->Name));
+    LOG("Start Open: ", *this->start_open);
+    LOG("Start Close: ", *this->start_close);
+    LOG("End Open: ", *this->end_open);
+    LOG("End Close: ", *this->end_close);
+}
 
-    SingleTag(std::string tag_type, std::string tag, int start_open, int start_close)
+void Tag::printChildren(int indent)
+{
+    std::string spaces = " ";
+    for (int i = 0; i < indent; i++)
     {
-        this->tag_type = new std::string(tag_type);
-        this->tag = new std::string(tag);
-        this->start_open = new int(start_open);
-        this->start_close = new int(start_close);
+        spaces += " ";
     }
-
-    ~SingleTag()
+    LOG(spaces, "Tag: ", tagTypeToString(*this->Name));
+    for (Tag *child : this->Children)
     {
-        delete this->tag_type;
-        delete this->tag;
-        delete this->start_open;
-        delete this->start_close;
+        child->printChildren(indent + 2);
     }
-};
+}
 
 WebPage::WebPage(const char *url, const char *html_content)
 {
     this->url = new std::string(url);
     this->html_content = new std::string(html_content);
-    this->page_data = new PageData();
+    this->Tags = std::deque<Tag *>();
+    this->Title = new std::string();
+    this->Description = new std::string();
 
     LOG("Created WebPage object for URL: ", this->url->c_str());
 }
@@ -40,32 +58,38 @@ WebPage::~WebPage()
     LOG("Deleted WebPage object for URL: ", this->url->c_str());
     delete this->url;
     delete this->html_content;
-    delete this->page_data;
+    delete this->Title;
+    delete this->Description;
+
+    for (Tag *tag : this->Tags)
+    {
+        delete tag;
+    }
 }
 
-void WebPage::scrape()
+// void WebPage::setPageData(std::deque<Tag *>& tag_tree)
+// {
+//     if (this->page_data != nullptr)
+//     {
+//         delete this->page_data;
+//         this->page_data = nullptr;
+//     }
+
+//     PageData *page_data = new PageData();
+
+
+
+// }
+
+
+
+TagParseError WebPage::parseTagTree()
 {
-
-    if (this->html_content == nullptr)
-    {
-        LOG("No HTML content to scrape");
-        return;
-    }
-
-    if (this->page_data != nullptr)
-    {
-        delete this->page_data;
-        this->page_data = nullptr;
-    }
-
-    LOG("Scraping URL: ", this->url->c_str());
-
-    LOG("HTML Content: ", this->html_content->c_str());
-
+    
     int start = -1;
 
     std::string tag;
-    std::string tag_type;
+    TagType tag_type;
 
     int start_open = 0;
     // int start_close = 0;
@@ -74,38 +98,57 @@ void WebPage::scrape()
     int next_forward_slash = 0;
     TagOrganisation tag_organisation = TagOrganisation::OPENING;
 
-    std::string search_str = "<!doctype html>";
 
     size_t pos = 0;
-
-    pos = this->html_content->find(search_str, pos);
+    pos = this->html_content->find("<!doctype html", 0);
     if (pos == std::string::npos)
     {
-        LOG("Doctype not found, WebPage not parseable");
-        return;
+        LOG("<!doctype html> not found, WebPage not parseable");
+
+        pos = this->html_content->find("<!DOCTYPE html", 0);
+        if (pos == std::string::npos)
+        {
+            LOG("<!DOCTYPE html> not found, WebPage not parseable");
+
+            pos = this->html_content->find("<!DOCTYPE HTML", 0);
+            if (pos == std::string::npos)
+            {
+                LOG("<!DOCTYPE HTML> not found, WebPage not parseable");
+                return TagParseError::NO_DOCTYPE;
+            }
+        }
     }
 
-    LOG("Found doctype at: ", pos);
-
-    pos += search_str.size();
-
-    LOG("Doctype ends at:", pos);
+    pos += 0xf;
 
     int start_addition = 0;
     int end_negation = 0;
 
     std::deque<SingleTag *> tag_stack;
 
-    std::deque<Tag *> tag_tree;
+    std::deque<Tag *> tag_branch;
+
 
     while (pos < this->html_content->size())
     {
 
-        LOG("\n=========================================================");
+        // LOG("\n=========================================================");
 
-        LOG("Current pos: ", pos);
+        // LOG("Current pos: ", pos);
 
-        LOG("---------------------------------------------------------\n");
+        // LOG("---------------------------------------------------------\n");
+
+
+
+        // LOG("Tag stack size: ", tag_stack.size());
+        // LOG("Tag branch size: ", tag_branch.size());
+
+        // LOG ("Tag Branch:\n");
+        // for (Tag* tag : tag_branch){
+        //     LOG("   ", tag->Name->c_str());
+        // }
+
+        // LOG("---------------------------------------------------------\n");
 
         // #########################################################################################
         //
@@ -127,18 +170,13 @@ void WebPage::scrape()
 
         if (this->html_content->at(pos) != '<')
         {
-            LOG("Skipping to next tag");
-            // pos++;
-            // continue;
             pos = this->html_content->find('<', pos);
             if (pos == std::string::npos)
             {
                 LOG("No more tags found");
                 break;
             }
-            LOG("Found start of tag at: ", pos);
         }
-
 
         // #########################################################################################
         //
@@ -150,7 +188,7 @@ void WebPage::scrape()
         start_open = pos;
         pos = this->html_content->find('>', pos);
         tag = this->html_content->substr(start_open, pos - start_open + 1);
-        LOG("Found tag: ", tag);
+        // LOG("Found tag: ", tag, " at pos: ", start_open, " to ", pos);
 
         if (this->html_content->at(pos - 1) == '/')
         {
@@ -176,20 +214,17 @@ void WebPage::scrape()
 
         if (next_space == std::string::npos || next_space > pos)
         {
-            LOG("Using startclose");
-            tag_type = this->html_content->substr(start_open + 1 + start_addition, pos - start_open - start_addition - 1 - end_negation);
+            tag_type = stringToTagType(this->html_content->substr(start_open + 1 + start_addition, pos - start_open - start_addition - 1 - end_negation));
         }
         else
         {
-            LOG("Using next space");
-            tag_type = this->html_content->substr(start_open + 1 + start_addition, next_space - start_open - 1 - start_addition);
+            tag_type = stringToTagType(this->html_content->substr(start_open + 1 + start_addition, next_space - start_open - 1 - start_addition));
         }
 
-        LOG("Is ", (
-                        tag_organisation == TagOrganisation::SELF_CLOSING ? "Self Closing" : tag_organisation == TagOrganisation::CLOSING ? "Closing"
-                                                                                                                                            : "Opening"));
+        // LOG(tag_type, " is ", (
+        //                 tag_organisation == TagOrganisation::SELF_CLOSING ? "Self Closing" : tag_organisation == TagOrganisation::CLOSING ? "Closing"
+                                                                                                                                            // : "Opening"));
 
-        LOG("Tag type: ", tag_type);
 
 
         // ###################################################################################
@@ -199,7 +234,47 @@ void WebPage::scrape()
         // ###################################################################################
 
         if (tag_organisation == TagOrganisation::OPENING){
-            LOG("Opening tag: ", tag_type);
+            // LOG("Pushed opening tag");
+
+            switch (tag_type)
+            {
+
+
+                case TagType::META:
+                {
+                    // LOG("Found meta tag");
+                    continue;
+                    break;
+                }
+
+                case TagType::TITLE:
+                {
+                    // LOG("Found title tag");
+                    break;
+                }
+
+                case TagType::LINK:
+                case TagType::IMG:
+                case TagType::INPUT__TEXT:
+                case TagType::SCRIPT:
+                case TagType::STYLE:
+                case TagType::BR:
+                case TagType::HR:
+                case TagType::COMMENT:
+                case TagType::UNKNOWN:
+                {
+                    // LOG("Found tag: ", tag_type);
+                    continue;
+                    break;
+                }
+
+                default:
+                {
+                    break;
+                }
+
+            }
+
             SingleTag *sTag = new SingleTag(tag_type, tag, start_open, pos);
             tag_stack.push_front(sTag);
             continue;
@@ -214,7 +289,8 @@ void WebPage::scrape()
 
         if (tag_organisation == TagOrganisation::SELF_CLOSING)
         {
-            LOG("Self closing tag: ", tag_type);
+            //Handle self closing tags that contain links
+            // LOG("Self closing tag: ", tag_type);
             continue;
         }
 
@@ -224,11 +300,11 @@ void WebPage::scrape()
         //
         // ###################################################################################
 
-        LOG("Closing tag: ", tag_type);
+        // LOG("Closing tag: ", tag_type);
 
         if (tag_stack.empty())
         {
-            LOG("No opening tag to match closing tag: ", tag_type);
+            // LOG("No opening tag to match closing tag: ", tag_type);
             continue;
         }
 
@@ -237,23 +313,62 @@ void WebPage::scrape()
         // LOG("Top of stack: ", sTag->tag_type->c_str());
         // LOG("Tag ", sTag->tag->c_str());
 
-        if (strcmp(tag_type.c_str(), sTag->tag_type->c_str()) != 0)
+        if (tag_type != *sTag->tag_type)
         {
-            LOG("Closing tag: ", tag_type, " does not match opening tag: ", *sTag->tag_type);
+            // LOG("Closing tag: ", tag_type, " does not match opening tag: ", *sTag->tag_type);
             continue;
         }
         tag_stack.pop_front();
 
 
-        LOG("Matched closing tag: ", tag_type, " with opening tag: ", *sTag->tag_type);
+        // LOG("Matched closing tag: ", tag_type, " with opening tag: ", *sTag->tag_type);
 
-        Tag *tag = new Tag(*sTag->tag_type, *sTag->start_open, *sTag->start_close, start_open, pos);
+        Tag *new_tag = new Tag(*sTag->tag_type, *sTag->start_open, *sTag->start_close, start_open, pos);
 
         delete sTag;
 
-        LOG("Created tag: ", tag->Name->c_str());
+        // LOG("Created tag: ", new_tag->Name->c_str());
+
+
+
+        // ###################################################################################
+        //
+        //          Add tag to the tree
+        //
+        // ###################################################################################
+
+
+        if (tag_branch.empty()) // only happens for the first tag
+        {
+            tag_branch.push_back(new_tag);
+            continue;
+        }
+
+        for (Tag* orphaned_node : tag_branch){
+            // LOG("Orphaned node: ", orphaned_node->Name->c_str());
+            // LOG(*new_tag->start_open, " < ", *orphaned_node->start_open, " && ", *orphaned_node->end_close, " < ", *new_tag->end_close);
+            if (*new_tag->start_open < *orphaned_node->start_open && *orphaned_node->end_close < *new_tag->end_close)
+            {
+                // LOG("New tag is parent of orphaned tag: ", orphaned_node->Name->c_str());
+                new_tag->Children.push_back(orphaned_node);
+                orphaned_node->Parent = new_tag;
+            }
+        }
+
+        for (int i = 0; i < new_tag->Children.size(); i++){
+            // LOG("Child: ", new_tag->Children[i]->Name->c_str());
+            //remove child from branch
+            auto it = std::find(tag_branch.begin(), tag_branch.end(), new_tag->Children[i]);
+            if (it != tag_branch.end()) {
+                tag_branch.erase(it);
+            }
+        }
+
+        tag_branch.push_back(new_tag);
+
         
     }
+
 
     if (!tag_stack.empty())
     {
@@ -261,7 +376,7 @@ void WebPage::scrape()
 
         for (SingleTag *sTag : tag_stack)
         {
-            LOG("Unclosed tag: ", sTag->tag_type->c_str());
+            LOG("Unclosed tag: ", tagTypeToString(*sTag->tag_type));
             delete sTag;
         }
     }
@@ -269,6 +384,47 @@ void WebPage::scrape()
     {
         LOG("No unclosed tags found");
     }
+
+    this->Tags = tag_branch;
+
+    return TagParseError::NO_TAG_PARSE_ERROR;
+
+}
+
+void WebPage::scrape()
+{
+
+    if (this->html_content == nullptr)
+    {
+        LOG("No HTML content to scrape");
+        return;
+    }
+
+
+
+    LOG("Scraping URL: ", this->url->c_str());
+
+    LOG("HTML Content: ", this->html_content->c_str());
+
+
+    // std::deque<Tag*> tag_tree;
+    TagParseError error = this->parseTagTree();
+
+    if (error != TagParseError::NO_TAG_PARSE_ERROR)
+    {
+        LOG("Error parsing tag tree");
+    } else {
+        LOG("Tag tree parsed successfully");
+
+        for (Tag* tag : this->Tags){
+            tag->printChildren();
+        }
+    }
+
+
+
+
+    
 
     LOG("Finished scraping URL: ", this->url->c_str());
 }

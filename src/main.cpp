@@ -8,7 +8,7 @@
 int main() {
 
 
-    WebPage* webpage = curl_manager.get("https://www.example.com");
+    WebPage* webpage = curl_manager.get("https://en.wikipedia.org/wiki/James_Joyce");
 
     if(webpage != nullptr) {
         webpage->scrape();
