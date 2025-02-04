@@ -28,7 +28,7 @@ void Tag::print()
     LOG("End Close: ", *this->end_close);
 }
 
-void Tag::printChildren(int indent)
+void Tag::printChildTags(int indent)
 {
     std::string spaces = " ";
     for (int i = 0; i < indent; i++)
@@ -38,9 +38,73 @@ void Tag::printChildren(int indent)
     LOG(spaces, "Tag: ", tagTypeToString(*this->Name));
     for (Tag *child : this->Children)
     {
-        child->printChildren(indent + 2);
+        child->printChildTags(indent + 2);
     }
 }
+
+std::string Tag::sanitizeContent(std::string& content){
+    std::string sanitized_content = "";
+
+    int start_of_sanitize = 0;
+    int pos = 0;
+
+    while (pos < content.size()){
+        pos = content.find('<', start_of_sanitize);
+        if (pos == std::string::npos){
+            break;
+        }
+
+        sanitized_content += content.substr(start_of_sanitize, pos - start_of_sanitize);
+        
+        pos = content.find('>', pos);
+        if (pos == std::string::npos){
+            break;
+        }
+
+        start_of_sanitize = pos + 1;
+    }
+
+    return sanitized_content;
+}
+
+
+
+std::string Tag::getContent(std::string* html_content){
+
+    if (this->Children.empty())
+    {        
+        return sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1));
+    }
+
+    
+    std::string content = "";
+    std::deque<std::string> content_stack;
+
+    Tag* last_child = this;
+
+    for (Tag* child : this->Children){
+
+
+        std::string direct_content = html_content->substr(*last_child->start_close + 1, *child->start_open - *last_child->start_close - 1);
+        direct_content = sanitizeContent(direct_content);
+        content_stack.push_front(direct_content);
+        std::string child_content = child->getContent(html_content);
+        content_stack.push_front(child_content);
+
+    }
+
+    for (std::string child_content : content_stack){
+        if (child_content.empty()){
+            continue;
+        }
+        content += child_content;
+        content += " ";
+    }
+
+    return content;
+}
+
+
 
 WebPage::WebPage(const char *url, const char *html_content)
 {
@@ -66,21 +130,6 @@ WebPage::~WebPage()
         delete tag;
     }
 }
-
-// void WebPage::setPageData(std::deque<Tag *>& tag_tree)
-// {
-//     if (this->page_data != nullptr)
-//     {
-//         delete this->page_data;
-//         this->page_data = nullptr;
-//     }
-
-//     PageData *page_data = new PageData();
-
-
-
-// }
-
 
 
 TagParseError WebPage::parseTagTree()
@@ -365,10 +414,7 @@ TagParseError WebPage::parseTagTree()
         }
 
         tag_branch.push_back(new_tag);
-
-        
     }
-
 
     if (!tag_stack.empty())
     {
@@ -379,14 +425,12 @@ TagParseError WebPage::parseTagTree()
             LOG("Unclosed tag: ", tagTypeToString(*sTag->tag_type));
             delete sTag;
         }
-    }
-    else
-    {
-        LOG("No unclosed tags found");
+        this->Tags = tag_branch;
+        return TagParseError::HTML_MALFORMED;
     }
 
+    LOG("No unclosed tags found");
     this->Tags = tag_branch;
-
     return TagParseError::NO_TAG_PARSE_ERROR;
 
 }
@@ -410,21 +454,34 @@ void WebPage::scrape()
     // std::deque<Tag*> tag_tree;
     TagParseError error = this->parseTagTree();
 
-    if (error != TagParseError::NO_TAG_PARSE_ERROR)
-    {
-        LOG("Error parsing tag tree");
-    } else {
-        LOG("Tag tree parsed successfully");
 
-        for (Tag* tag : this->Tags){
-            tag->printChildren();
+    switch (error)
+    {
+        case TagParseError::NO_DOCTYPE:
+        {
+            LOG("No DOCTYPE found");
+            break;
+        }
+
+        case TagParseError::HTML_MALFORMED:
+        {
+            LOG("HTML is malformed, unable to generate full tree");
+            //being cool and not breaking to abuse the default call
+        }
+        default:
+        {
+            // for (Tag* tag : this->Tags){
+            //     tag->printChildTags();
+            // }
+
+            std:: string content = "";
+            for (Tag* tag : this->Tags){
+                content += tag->getContent(this->html_content);
+            }
+            LOG("Content: ", content);
+            break;
         }
     }
-
-
-
-
-    
 
     LOG("Finished scraping URL: ", this->url->c_str());
 }

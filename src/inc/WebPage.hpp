@@ -9,7 +9,8 @@
 enum TagParseError
 {
     NO_TAG_PARSE_ERROR,
-    NO_DOCTYPE
+    NO_DOCTYPE,
+    HTML_MALFORMED
 };
 
 enum TagOrganisation
@@ -58,7 +59,8 @@ enum TagType
     BR,
     HR,
     COMMENT,
-    UNKNOWN
+    UNKNOWN,
+    CITE,
 };
 
 const std::unordered_map<std::string, TagType> string_to_tag = {
@@ -98,7 +100,8 @@ const std::unordered_map<std::string, TagType> string_to_tag = {
     {"br", BR},
     {"hr", HR},
     {"!--", COMMENT},
-    {"unknown", UNKNOWN}
+    {"unknown", UNKNOWN},
+    {"cite", CITE}
 };
 
 const std::unordered_map<TagType, std::string> tag_to_string = {
@@ -138,7 +141,8 @@ const std::unordered_map<TagType, std::string> tag_to_string = {
     {BR, "br"},
     {HR, "hr"},
     {COMMENT, "!--"},
-    {UNKNOWN, "unknown"}
+    {UNKNOWN, "unknown"},
+    {CITE, "cite"}
 };
 
 
@@ -210,36 +214,15 @@ struct Tag
     }
 
     void print();
-    void printChildren(int indent = 0);
+    void printChildTags(int indent = 0);
+    std::string getContent(std::string* html_content);
+
+private:
+    std::string sanitizeContent(std::string& content);
+    std::string getChildContent(std::string* html_content);
+
 
 };
-
-// struct PageData
-// {
-//     std::string* Title;
-//     std::string* Description;
-//     std::deque<Tag*> Tags;
-
-//     PageData()
-//     {
-//         this->Title = new std::string();
-//         this->Description = new std::string();
-//         this->Tags = std::deque<Tag*>();
-//     }
-
-//     ~PageData()
-//     {
-//         delete this->Title;
-//         delete this->Description;
-
-//         for (Tag* tag : this->Tags)
-//         {
-//             delete tag;
-//         }
-
-//         this->Tags.clear();
-//     }
-// };
 
 class WebPage
 {
@@ -257,7 +240,7 @@ class WebPage
         std::string* Description;
         std::string* html_content;
         std::vector<WebPage> sublinks;
-        // PageData* page_data;
+
         std::deque<Tag*> Tags;
 
         TagParseError parseTagTree();
