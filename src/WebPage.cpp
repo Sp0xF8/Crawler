@@ -56,6 +56,7 @@ std::string Tag::sanitizeContent(std::string& content){
     while (pos < content.size()){
         openTag = content.find('<', pos);
         if (openTag == std::string::npos){
+
             sanitized_content += content.substr(pos);
             break;
         }
@@ -78,6 +79,10 @@ std::string Tag::sanitizeContent(std::string& content){
         }
         else if (tag_organisation == TagOrganisation::CLOSING){
             opens--;
+            if (opens < 0){
+                opens = 0;
+                sanitized_content = "";
+            }
  
         }
         pos = closeTag + 1;
@@ -92,7 +97,6 @@ std::string getIndentation(int depth) {
     }
     return "  " + getIndentation(depth - 2);
 }
-
 
 
 
@@ -114,12 +118,16 @@ std::string Tag::getContent(std::string* html_content, int indent){
 
         std::string direct_content = html_content->substr(*last_child->start_close + 1, *child->start_open - *last_child->start_close - 1);
         direct_content = sanitizeContent(direct_content);
-        // content_stack.push_back(direct_content);
         content += direct_content;
+        // if (direct_content == ", and the radical transformation of traditional plot and character development. Though most of his adult life was spent abroad, his fictional universe centres on Dublin and is largely populated by characters who closely resemble family members, enemies and friends from his time there. "){
+        //     LOG("James Augustine Aloysius Joyce");
+        // }
+        // content_stack.push_back(direct_content);
         std::string child_content = child->getContent(html_content, indent + 2);
         // content_stack.push_back(child_content);
         content += child_content;
         last_child = child;
+
 
     }
 

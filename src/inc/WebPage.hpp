@@ -229,8 +229,6 @@ struct Tag
 
 private:
     std::string sanitizeContent(std::string& content);
-    std::string getChildContent(std::string* html_content);
-
 
 };
 
@@ -254,6 +252,7 @@ class WebPage
         std::deque<Tag*> Tags;
 
         TagParseError parseTagTree();
+        std::string translate_entity(int start, int end);
 
 
 };
