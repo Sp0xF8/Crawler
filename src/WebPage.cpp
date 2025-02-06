@@ -45,31 +45,62 @@ void Tag::printChildTags(int indent)
 std::string Tag::sanitizeContent(std::string& content){
     std::string sanitized_content = "";
 
-    int start_of_sanitize = 0;
     int pos = 0;
 
+    int openTag = 0;
+    int closeTag = 0;
+
+
+    int opens = 0;
+
     while (pos < content.size()){
-        pos = content.find('<', start_of_sanitize);
-        if (pos == std::string::npos){
+        openTag = content.find('<', pos);
+        if (openTag == std::string::npos){
+
+            sanitized_content += content.substr(pos);
             break;
         }
 
-        sanitized_content += content.substr(start_of_sanitize, pos - start_of_sanitize);
         
-        pos = content.find('>', pos);
-        if (pos == std::string::npos){
+        closeTag = content.find('>', openTag);
+        if (closeTag == std::string::npos){
             break;
         }
 
-        start_of_sanitize = pos + 1;
+        TagOrganisation tag_organisation = Tag::getTagOrganisation(&content, openTag, closeTag);
+
+        if (tag_organisation == TagOrganisation::OPENING){
+            if (opens == 0){
+                sanitized_content += content.substr(pos, openTag - pos);
+            }
+
+            opens++;
+            
+        }
+        else if (tag_organisation == TagOrganisation::CLOSING){
+            opens--;
+            if (opens < 0){
+                opens = 0;
+                sanitized_content = "";
+            }
+ 
+        }
+        pos = closeTag + 1;
     }
 
     return sanitized_content;
 }
 
+std::string getIndentation(int depth) {
+    if (depth <= 0) {
+        return "";
+    }
+    return "  " + getIndentation(depth - 2);
+}
 
 
-std::string Tag::getContent(std::string* html_content){
+
+std::string Tag::getContent(std::string* html_content, int indent){
 
     if (this->Children.empty())
     {        
@@ -87,23 +118,50 @@ std::string Tag::getContent(std::string* html_content){
 
         std::string direct_content = html_content->substr(*last_child->start_close + 1, *child->start_open - *last_child->start_close - 1);
         direct_content = sanitizeContent(direct_content);
-        content_stack.push_front(direct_content);
-        std::string child_content = child->getContent(html_content);
-        content_stack.push_front(child_content);
-
-    }
-
-    for (std::string child_content : content_stack){
-        if (child_content.empty()){
-            continue;
-        }
+        content += direct_content;
+        // if (direct_content == ", and the radical transformation of traditional plot and character development. Though most of his adult life was spent abroad, his fictional universe centres on Dublin and is largely populated by characters who closely resemble family members, enemies and friends from his time there. "){
+        //     LOG("James Augustine Aloysius Joyce");
+        // }
+        // content_stack.push_back(direct_content);
+        std::string child_content = child->getContent(html_content, indent + 2);
+        // content_stack.push_back(child_content);
         content += child_content;
-        content += " ";
+        last_child = child;
+
+
     }
+
+    std::string direct_content = html_content->substr(*last_child->end_close + 1, *this->end_open - *last_child->end_close - 1);
+    direct_content = sanitizeContent(direct_content);
+    content += direct_content;
+
+    // for (std::string child_content : content_stack){
+    //     if (child_content.empty()){
+    //         continue;
+    //     }
+    //     // content += getIndentation(indent);
+    //     content += child_content;
+    //     // content += " ";
+    // }
 
     return content;
 }
 
+TagOrganisation Tag::getTagOrganisation(std::string* content, int start, int end)
+{
+    if (content->at(start + 1) == '/')
+    {
+        return TagOrganisation::CLOSING;
+    }
+    else if (content->at(end - 1) == '/')
+    {
+        return TagOrganisation::SELF_CLOSING;
+    }
+    else
+    {
+        return TagOrganisation::OPENING;
+    }
+}
 
 
 WebPage::WebPage(const char *url, const char *html_content)
@@ -130,7 +188,6 @@ WebPage::~WebPage()
         delete tag;
     }
 }
-
 
 TagParseError WebPage::parseTagTree()
 {
@@ -239,21 +296,16 @@ TagParseError WebPage::parseTagTree()
         tag = this->html_content->substr(start_open, pos - start_open + 1);
         // LOG("Found tag: ", tag, " at pos: ", start_open, " to ", pos);
 
-        if (this->html_content->at(pos - 1) == '/')
+
+        tag_organisation = Tag::getTagOrganisation(this->html_content, start_open, pos);
+        if (tag_organisation == TagOrganisation::CLOSING)
         {
-            tag_organisation = TagOrganisation::SELF_CLOSING;
-            end_negation = 1;
-        }
-        else if (this->html_content->at(start_open + 1) == '/')
-        {
-            tag_organisation = TagOrganisation::CLOSING;
             start_addition = 1;
         }
-        else
+        else if (tag_organisation == TagOrganisation::SELF_CLOSING)
         {
-            tag_organisation = TagOrganisation::OPENING;
+            end_negation = 1;
         }
-
 
         // ###################################################################################
         //
@@ -305,6 +357,10 @@ TagParseError WebPage::parseTagTree()
                 case TagType::LINK:
                 case TagType::IMG:
                 case TagType::INPUT__TEXT:
+                case TagType::BUTTON:
+                case TagType::SELECT:
+                case TagType::OPTION:
+                case TagType::CITE:
                 case TagType::SCRIPT:
                 case TagType::STYLE:
                 case TagType::BR:
