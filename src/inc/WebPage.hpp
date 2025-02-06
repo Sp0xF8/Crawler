@@ -9,7 +9,8 @@
 enum TagParseError
 {
     NO_TAG_PARSE_ERROR,
-    NO_DOCTYPE
+    NO_DOCTYPE,
+    HTML_MALFORMED
 };
 
 enum TagOrganisation
@@ -29,6 +30,8 @@ enum TagType
     META,
     BODY,
     P,
+    B,
+    I,
     H1,
     H2,
     H3,
@@ -47,6 +50,7 @@ enum TagType
     TH,
     TD,
     FORM,
+    LABEL,
     INPUT__TEXT,
     BUTTON,
     SELECT,
@@ -58,7 +62,8 @@ enum TagType
     BR,
     HR,
     COMMENT,
-    UNKNOWN
+    UNKNOWN,
+    CITE,
 };
 
 const std::unordered_map<std::string, TagType> string_to_tag = {
@@ -69,6 +74,8 @@ const std::unordered_map<std::string, TagType> string_to_tag = {
     {"meta", META},
     {"body", BODY},
     {"p", P},
+    {"b", B},
+    {"i", I},
     {"h1", H1},
     {"h2", H2},
     {"h3", H3},
@@ -87,6 +94,7 @@ const std::unordered_map<std::string, TagType> string_to_tag = {
     {"th", TH},
     {"td", TD},
     {"form", FORM},
+    {"label", LABEL},
     {"input", INPUT__TEXT},
     {"button", BUTTON},
     {"select", SELECT},
@@ -98,7 +106,8 @@ const std::unordered_map<std::string, TagType> string_to_tag = {
     {"br", BR},
     {"hr", HR},
     {"!--", COMMENT},
-    {"unknown", UNKNOWN}
+    {"unknown", UNKNOWN},
+    {"cite", CITE}
 };
 
 const std::unordered_map<TagType, std::string> tag_to_string = {
@@ -109,6 +118,8 @@ const std::unordered_map<TagType, std::string> tag_to_string = {
     {META, "meta"},
     {BODY, "body"},
     {P, "p"},
+    {B, "b"},
+    {I, "i"},
     {H1, "h1"},
     {H2, "h2"},
     {H3, "h3"},
@@ -127,6 +138,7 @@ const std::unordered_map<TagType, std::string> tag_to_string = {
     {TH, "th"},
     {TD, "td"},
     {FORM, "form"},
+    {LABEL, "label"},
     {INPUT__TEXT, "input"},
     {BUTTON, "button"},
     {SELECT, "select"},
@@ -138,7 +150,8 @@ const std::unordered_map<TagType, std::string> tag_to_string = {
     {BR, "br"},
     {HR, "hr"},
     {COMMENT, "!--"},
-    {UNKNOWN, "unknown"}
+    {UNKNOWN, "unknown"},
+    {CITE, "cite"}
 };
 
 
@@ -210,36 +223,14 @@ struct Tag
     }
 
     void print();
-    void printChildren(int indent = 0);
+    void printChildTags(int indent = 0);
+    std::string getContent(std::string* html_content, int indent = 0);
+    static TagOrganisation getTagOrganisation(std::string* content, int start, int end);
+
+private:
+    std::string sanitizeContent(std::string& content);
 
 };
-
-// struct PageData
-// {
-//     std::string* Title;
-//     std::string* Description;
-//     std::deque<Tag*> Tags;
-
-//     PageData()
-//     {
-//         this->Title = new std::string();
-//         this->Description = new std::string();
-//         this->Tags = std::deque<Tag*>();
-//     }
-
-//     ~PageData()
-//     {
-//         delete this->Title;
-//         delete this->Description;
-
-//         for (Tag* tag : this->Tags)
-//         {
-//             delete tag;
-//         }
-
-//         this->Tags.clear();
-//     }
-// };
 
 class WebPage
 {
@@ -257,10 +248,11 @@ class WebPage
         std::string* Description;
         std::string* html_content;
         std::vector<WebPage> sublinks;
-        // PageData* page_data;
+
         std::deque<Tag*> Tags;
 
         TagParseError parseTagTree();
+        std::string translate_entity(int start, int end);
 
 
 };

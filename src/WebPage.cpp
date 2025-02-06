@@ -28,7 +28,7 @@ void Tag::print()
     LOG("End Close: ", *this->end_close);
 }
 
-void Tag::printChildren(int indent)
+void Tag::printChildTags(int indent)
 {
     std::string spaces = " ";
     for (int i = 0; i < indent; i++)
@@ -38,9 +38,131 @@ void Tag::printChildren(int indent)
     LOG(spaces, "Tag: ", tagTypeToString(*this->Name));
     for (Tag *child : this->Children)
     {
-        child->printChildren(indent + 2);
+        child->printChildTags(indent + 2);
     }
 }
+
+std::string Tag::sanitizeContent(std::string& content){
+    std::string sanitized_content = "";
+
+    int pos = 0;
+
+    int openTag = 0;
+    int closeTag = 0;
+
+
+    int opens = 0;
+
+    while (pos < content.size()){
+        openTag = content.find('<', pos);
+        if (openTag == std::string::npos){
+
+            sanitized_content += content.substr(pos);
+            break;
+        }
+
+        
+        closeTag = content.find('>', openTag);
+        if (closeTag == std::string::npos){
+            break;
+        }
+
+        TagOrganisation tag_organisation = Tag::getTagOrganisation(&content, openTag, closeTag);
+
+        if (tag_organisation == TagOrganisation::OPENING){
+            if (opens == 0){
+                sanitized_content += content.substr(pos, openTag - pos);
+            }
+
+            opens++;
+            
+        }
+        else if (tag_organisation == TagOrganisation::CLOSING){
+            opens--;
+            if (opens < 0){
+                opens = 0;
+                sanitized_content = "";
+            }
+ 
+        }
+        pos = closeTag + 1;
+    }
+
+    return sanitized_content;
+}
+
+std::string getIndentation(int depth) {
+    if (depth <= 0) {
+        return "";
+    }
+    return "  " + getIndentation(depth - 2);
+}
+
+
+
+std::string Tag::getContent(std::string* html_content, int indent){
+
+    if (this->Children.empty())
+    {        
+        return sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1));
+    }
+
+    
+    std::string content = "";
+    std::deque<std::string> content_stack;
+
+    Tag* last_child = this;
+
+    for (Tag* child : this->Children){
+
+
+        std::string direct_content = html_content->substr(*last_child->start_close + 1, *child->start_open - *last_child->start_close - 1);
+        direct_content = sanitizeContent(direct_content);
+        content += direct_content;
+        // if (direct_content == ", and the radical transformation of traditional plot and character development. Though most of his adult life was spent abroad, his fictional universe centres on Dublin and is largely populated by characters who closely resemble family members, enemies and friends from his time there. "){
+        //     LOG("James Augustine Aloysius Joyce");
+        // }
+        // content_stack.push_back(direct_content);
+        std::string child_content = child->getContent(html_content, indent + 2);
+        // content_stack.push_back(child_content);
+        content += child_content;
+        last_child = child;
+
+
+    }
+
+    std::string direct_content = html_content->substr(*last_child->end_close + 1, *this->end_open - *last_child->end_close - 1);
+    direct_content = sanitizeContent(direct_content);
+    content += direct_content;
+
+    // for (std::string child_content : content_stack){
+    //     if (child_content.empty()){
+    //         continue;
+    //     }
+    //     // content += getIndentation(indent);
+    //     content += child_content;
+    //     // content += " ";
+    // }
+
+    return content;
+}
+
+TagOrganisation Tag::getTagOrganisation(std::string* content, int start, int end)
+{
+    if (content->at(start + 1) == '/')
+    {
+        return TagOrganisation::CLOSING;
+    }
+    else if (content->at(end - 1) == '/')
+    {
+        return TagOrganisation::SELF_CLOSING;
+    }
+    else
+    {
+        return TagOrganisation::OPENING;
+    }
+}
+
 
 WebPage::WebPage(const char *url, const char *html_content)
 {
@@ -66,22 +188,6 @@ WebPage::~WebPage()
         delete tag;
     }
 }
-
-// void WebPage::setPageData(std::deque<Tag *>& tag_tree)
-// {
-//     if (this->page_data != nullptr)
-//     {
-//         delete this->page_data;
-//         this->page_data = nullptr;
-//     }
-
-//     PageData *page_data = new PageData();
-
-
-
-// }
-
-
 
 TagParseError WebPage::parseTagTree()
 {
@@ -190,21 +296,16 @@ TagParseError WebPage::parseTagTree()
         tag = this->html_content->substr(start_open, pos - start_open + 1);
         // LOG("Found tag: ", tag, " at pos: ", start_open, " to ", pos);
 
-        if (this->html_content->at(pos - 1) == '/')
+
+        tag_organisation = Tag::getTagOrganisation(this->html_content, start_open, pos);
+        if (tag_organisation == TagOrganisation::CLOSING)
         {
-            tag_organisation = TagOrganisation::SELF_CLOSING;
-            end_negation = 1;
-        }
-        else if (this->html_content->at(start_open + 1) == '/')
-        {
-            tag_organisation = TagOrganisation::CLOSING;
             start_addition = 1;
         }
-        else
+        else if (tag_organisation == TagOrganisation::SELF_CLOSING)
         {
-            tag_organisation = TagOrganisation::OPENING;
+            end_negation = 1;
         }
-
 
         // ###################################################################################
         //
@@ -256,6 +357,10 @@ TagParseError WebPage::parseTagTree()
                 case TagType::LINK:
                 case TagType::IMG:
                 case TagType::INPUT__TEXT:
+                case TagType::BUTTON:
+                case TagType::SELECT:
+                case TagType::OPTION:
+                case TagType::CITE:
                 case TagType::SCRIPT:
                 case TagType::STYLE:
                 case TagType::BR:
@@ -365,10 +470,7 @@ TagParseError WebPage::parseTagTree()
         }
 
         tag_branch.push_back(new_tag);
-
-        
     }
-
 
     if (!tag_stack.empty())
     {
@@ -379,14 +481,12 @@ TagParseError WebPage::parseTagTree()
             LOG("Unclosed tag: ", tagTypeToString(*sTag->tag_type));
             delete sTag;
         }
-    }
-    else
-    {
-        LOG("No unclosed tags found");
+        this->Tags = tag_branch;
+        return TagParseError::HTML_MALFORMED;
     }
 
+    LOG("No unclosed tags found");
     this->Tags = tag_branch;
-
     return TagParseError::NO_TAG_PARSE_ERROR;
 
 }
@@ -410,21 +510,34 @@ void WebPage::scrape()
     // std::deque<Tag*> tag_tree;
     TagParseError error = this->parseTagTree();
 
-    if (error != TagParseError::NO_TAG_PARSE_ERROR)
-    {
-        LOG("Error parsing tag tree");
-    } else {
-        LOG("Tag tree parsed successfully");
 
-        for (Tag* tag : this->Tags){
-            tag->printChildren();
+    switch (error)
+    {
+        case TagParseError::NO_DOCTYPE:
+        {
+            LOG("No DOCTYPE found");
+            break;
+        }
+
+        case TagParseError::HTML_MALFORMED:
+        {
+            LOG("HTML is malformed, unable to generate full tree");
+            //being cool and not breaking to abuse the default call
+        }
+        default:
+        {
+            // for (Tag* tag : this->Tags){
+            //     tag->printChildTags();
+            // }
+
+            std:: string content = "";
+            for (Tag* tag : this->Tags){
+                content += tag->getContent(this->html_content);
+            }
+            LOG("Content: ", content);
+            break;
         }
     }
-
-
-
-
-    
 
     LOG("Finished scraping URL: ", this->url->c_str());
 }
