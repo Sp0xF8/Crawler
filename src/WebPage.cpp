@@ -209,22 +209,6 @@ WebPage::~WebPage()
     }
 }
 
-// void WebPage::setPageData(std::deque<Tag *>& tag_tree)
-// {
-//     if (this->page_data != nullptr)
-//     {
-//         delete this->page_data;
-//         this->page_data = nullptr;
-//     }
-
-//     PageData *page_data = new PageData();
-
-
-
-// }
-
-
-
 TagParseError WebPage::parseTagTree()
 {
     
@@ -332,21 +316,16 @@ TagParseError WebPage::parseTagTree()
         tag = this->html_content->substr(start_open, pos - start_open + 1);
         // LOG("Found tag: ", tag, " at pos: ", start_open, " to ", pos);
 
-        if (this->html_content->at(pos - 1) == '/')
+
+        tag_organisation = Tag::getTagOrganisation(this->html_content, start_open, pos);
+        if (tag_organisation == TagOrganisation::CLOSING)
         {
-            tag_organisation = TagOrganisation::SELF_CLOSING;
-            end_negation = 1;
-        }
-        else if (this->html_content->at(start_open + 1) == '/')
-        {
-            tag_organisation = TagOrganisation::CLOSING;
             start_addition = 1;
         }
-        else
+        else if (tag_organisation == TagOrganisation::SELF_CLOSING)
         {
-            tag_organisation = TagOrganisation::OPENING;
+            end_negation = 1;
         }
-
 
         // ###################################################################################
         //
@@ -398,6 +377,10 @@ TagParseError WebPage::parseTagTree()
                 case TagType::LINK:
                 case TagType::IMG:
                 case TagType::INPUT__TEXT:
+                case TagType::BUTTON:
+                case TagType::SELECT:
+                case TagType::OPTION:
+                case TagType::CITE:
                 case TagType::SCRIPT:
                 case TagType::STYLE:
                 case TagType::BR:
@@ -507,10 +490,7 @@ TagParseError WebPage::parseTagTree()
         }
 
         tag_branch.push_back(new_tag);
-
-        
     }
-
 
     if (!tag_stack.empty())
     {
@@ -521,14 +501,12 @@ TagParseError WebPage::parseTagTree()
             LOG("Unclosed tag: ", tagTypeToString(*sTag->tag_type));
             delete sTag;
         }
-    }
-    else
-    {
-        LOG("No unclosed tags found");
+        this->Tags = tag_branch;
+        return TagParseError::HTML_MALFORMED;
     }
 
+    LOG("No unclosed tags found");
     this->Tags = tag_branch;
-
     return TagParseError::NO_TAG_PARSE_ERROR;
 
 }
