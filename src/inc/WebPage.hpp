@@ -9,7 +9,8 @@
 enum TagParseError
 {
     NO_TAG_PARSE_ERROR,
-    NO_DOCTYPE
+    NO_DOCTYPE,
+    HTML_MALFORMED
 };
 
 enum TagOrganisation
@@ -211,35 +212,15 @@ struct Tag
 
     void print();
     void printChildren(int indent = 0);
+    std::string getContent(std::string* html_content, int indent = 0);
+    static TagOrganisation getTagOrganisation(std::string* content, int start, int end);
+
+private:
+    std::string sanitizeContent(std::string& content);
+    std::string beautify_content(std::string& content);
+
 
 };
-
-// struct PageData
-// {
-//     std::string* Title;
-//     std::string* Description;
-//     std::deque<Tag*> Tags;
-
-//     PageData()
-//     {
-//         this->Title = new std::string();
-//         this->Description = new std::string();
-//         this->Tags = std::deque<Tag*>();
-//     }
-
-//     ~PageData()
-//     {
-//         delete this->Title;
-//         delete this->Description;
-
-//         for (Tag* tag : this->Tags)
-//         {
-//             delete tag;
-//         }
-
-//         this->Tags.clear();
-//     }
-// };
 
 class WebPage
 {
@@ -261,6 +242,9 @@ class WebPage
         std::deque<Tag*> Tags;
 
         TagParseError parseTagTree();
+
+        wchar_t translate_entity_w(std::string entity);
+        std::string translate_entity_s(std::string entity);
 
 
 };
