@@ -88,6 +88,74 @@ std::string Tag::sanitizeContent(std::string& content){
     return sanitized_content;
 }
 
+/*
+*   Check if the content is tabbed only
+*   For example, if the content is:
+*    \t\t\t\t\n
+*    or
+*    \n
+*    if it is tabbed content, for exmaple:A
+*    \t\t\t\t[anything else]\n
+*/
+std::string Tag::check_tabbed_only(std::string& content){
+
+    return "";
+}
+
+/*
+*   Beautify the content:A
+*   - isolate individual lines of the text
+*   - remove any lines that are empty
+*
+*
+*/
+std::string Tag::beautify_content(std::string& content){
+    std::string tabs_removed = "";
+
+
+/// Remove every single `\t` occurance
+    int pos = 0;
+    int tab_pos = 0;
+    while (pos < content.size()){
+        tab_pos = content.find('\t', pos);
+        if (tab_pos == std::string::npos){
+            tabs_removed += content.substr(pos);
+            break;
+        }
+        tabs_removed += content.substr(pos, tab_pos - pos);
+        pos = tab_pos + 1;
+    }
+
+
+    std::string sanitized_content = "";
+    //remove instances of multiple spaces in a row
+    pos = 0;
+    int loop = 0;
+
+    while (pos < tabs_removed.size()){
+        if (pos == tabs_removed.size() - 1){
+            sanitized_content += tabs_removed.at(pos);
+            break;
+        }
+        if (tabs_removed.at(pos) == ' '){
+
+            if (tabs_removed.at(pos + 1) == ' ' || tabs_removed.at(pos + 1) == '\n'){
+                pos++;
+                continue;
+            }
+
+            
+        }
+
+        sanitized_content += tabs_removed.at(pos);
+        pos++;
+    }
+
+
+
+    return sanitized_content;
+}
+
 std::string getIndentation(int depth) {
     if (depth <= 0) {
         return "";
@@ -99,7 +167,59 @@ std::string Tag::getContent(std::string* html_content, int indent){
 
     if (this->Children.empty())
     {        
-        return beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+        switch (*this->Name)
+        {
+            case TagType::TITLE:
+            {
+                return "# " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "\n";
+            }
+            case TagType::H1:
+            {
+                return "## " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H2:
+            {
+                return "### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H3:
+            {
+                return "#### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H4:
+            {
+                return "##### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H5:
+            {
+                return "###### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H6:
+            {
+                return "####### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::B:
+            {
+                return "**" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "**";
+            }
+            case TagType::I:
+            {
+                return "*" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "*";
+            }
+            case TagType::TH:
+            {
+                return "**" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "** ";
+            }
+            case TagType::TD:
+            {
+                return beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)) + "\n\n");
+            }
+            default:
+            {
+                return beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+                break;
+            }
+        }
+
     }
     
     std::string content = "";
@@ -121,7 +241,57 @@ std::string Tag::getContent(std::string* html_content, int indent){
     direct_content = beautify_content(sanitizeContent(direct_content));
     content += direct_content;
 
-    return content;
+    switch (*this->Name){
+        case TagType::TITLE:
+        {
+            return "# " + content + "\n";
+        }
+        case TagType::H1:
+        {
+            return "## " + content;
+        }
+        case TagType::H2:
+        {
+            return "### " + content;
+        }
+        case TagType::H3:
+        {
+            return "#### " + content;
+        }
+        case TagType::H4:
+        {
+            return "##### " + content;
+        }
+        case TagType::H5:
+        {
+            return "###### " + content;
+        }
+        case TagType::H6:
+        {
+            return "####### " + content;
+        }
+        case TagType::B:
+        {
+            return "**" + content + "**";
+        }
+        case TagType::I:
+        {
+            return "*" + content + "*";
+        }
+        case TagType::TH:
+        {
+            return "**" + content + "**";
+        }
+        case TagType::TD:
+        {
+            return content + "\n\n";
+        }
+
+        default:
+        {
+            return content;
+        }
+    }
 }
 
 TagOrganisation Tag::getTagOrganisation(std::string* content, int start, int end)
@@ -158,6 +328,8 @@ std::string WebPage::translate_entity_s(std::string entity){
     if (entity[2] == 'x' || entity[2] == 'X') { // Hexadecimal entity (&#x2009;)
         std::stringstream ss(entity.substr(3, entity.size() - 4)); // Extract hex part
         ss >> std::hex >> codePoint;
+    } else if (entity[1] != '#') { // Not a valid entity
+        return entity;
     } else { // Decimal entity (&#8201;)
         codePoint = std::stoi(entity.substr(2, entity.size() - 3));
     }
@@ -512,90 +684,94 @@ TagParseError WebPage::parseTagTree()
 }
 
 
+// remove all instances where there are more than 2 new lines
+std::string WebPage::sanitize_markdown(std::string& content){
 
-/*
-*   Beautify the content:A
-*   - isolate individual lines of the text
-*   - remove any lines that are empty
-*
-*
-*/
-std::string Tag::beautify_content(std::string& content){
-    std::string beautified_content = "";
+    std::string sanitized_content = "";
 
-    std::string line = "";
+    int pos = 0;
+    int new_lines = 0;
 
-
-    int line_start = content.find('\n', 0);
-    if (line_start == std::string::npos){
-        return content;
-    }
-    if (line_start > 0){
-        beautified_content += content.substr(0, line_start);
-    }
-
-    int line_end = 0;
-    bool tabbed = true;
-    bool only_enter = false;
-    int deepest_tab = 0;
-    int deepest_enter = 0;
-    int deepest_non_enter = 0;
-
-
-    while (line_start < content.size()){
-        line_end = content.find('\n', line_start + 1);
-        if (line_end == std::string::npos){
-            line = content.substr(line_start);
-            if (line.size() > 0){
-                beautified_content += line;
-            }
-            break;
-        }
-        
-        if (line_start == line_end - 1){
-            line_start = line_end + 1;
-            continue;
-        }
-
-        line = content.substr(line_start, line_end - line_start + 1);
-
-        for (int i = 0; i < line.size(); i++){
-            if (line[i] == '\t'){
-                deepest_tab = i;
+    while (pos < content.size()){
+        if (content.at(pos) == '\n'){
+            new_lines++;
+            if (new_lines > 2){
+                pos++;
                 continue;
             }
-
-            if ((line[i] != '\t' && line[i] != '\n') && i > deepest_non_enter){
-                deepest_non_enter = i;
-                break;
+        }
+        else{
+            if (new_lines == 1){
+                sanitized_content += "\n";
             }
+            new_lines = 0;
         }
-
-        // for (int i = 0; i < line.size(); i++){
-        //     if (line[i] == '\n'){
-        //         deepest_enter = i;
-        //         continue;
-        //     }
-
-        //     if (line[i] != '\n' && i > deepest_enter){
-        //         deepest_non_enter = i;
-        //         continue;
-        //     }
-
-          
-        // }
-
-        if (deepest_tab < deepest_non_enter){
-            beautified_content += line;
-        }
-
-
-        line_start = line_end;
-       
+        sanitized_content += content.at(pos);
+        pos++;
     }
 
-    return beautified_content;
+    return sanitized_content;
 }
+
+
+void WebPage::write_markdown(std::string& content){
+    std::ofstream file;
+    file.open("output.md");
+    file << content;
+    file.close();
+}
+
+std::string WebPage::find_entites(std::string& content){
+    // std::string new_content = "";
+
+    // int pos = 0;
+    // int start = 0;
+    // int end = 0;
+
+    // start = content.find('&', pos);
+
+    // if (start == std::string::npos){
+    //     return content;
+    // }
+
+    // new_content += content.substr(pos, start - pos);
+
+
+    // while (pos < content.size()){
+
+
+    //     end = content.find(';', start);
+    //     if (end == std::string::npos){
+    //         new_content += content.substr(pos);
+    //         break;
+    //     }
+
+    //     if (end - start > 10){
+    //         new_content += content.substr(pos, start - pos);
+    //         pos = start + 1;
+    //         continue;
+    //     }
+
+    //     std::string entity = content.substr(start, end - start + 1);
+    //     new_content += translate_entity_s(entity);
+
+    //     start = content.find('&', end + 1);
+    //     if (start != std::string::npos){
+    //         new_content += content.substr(end + 1, start - end - 1);
+    //         pos = end + 1;
+    //         continue;
+    //     }       
+    //     if (start == std::string::npos){
+    //         new_content += content.substr(end + 1);
+    //         break;
+    //     }
+       
+    // }
+
+    // return new_content;
+    return content;
+}
+
 
 void WebPage::scrape()
 {
@@ -642,6 +818,9 @@ void WebPage::scrape()
                 content += tag->getContent(this->html_content);
             }
             LOG("Content: ", content);
+
+            content = "# " + *this->url + "\n\n" + content;
+            this->write_markdown(find_entites(sanitize_markdown(content)));
             break;
         }
     }
