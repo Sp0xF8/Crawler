@@ -722,22 +722,45 @@ void WebPage::write_markdown(std::string& content){
 }
 
 std::string WebPage::find_entites(std::string& content){
-    // std::string new_content = "";
+    std::string new_content = "";
 
-    // int pos = 0;
+    int pos = 0;
     // int start = 0;
-    // int end = 0;
-
-    // start = content.find('&', pos);
-
-    // if (start == std::string::npos){
-    //     return content;
-    // }
-
-    // new_content += content.substr(pos, start - pos);
+    int end = 0;
 
 
-    // while (pos < content.size()){
+
+    while (pos < content.size()){
+
+        if (content.at(pos) != '&'){
+            new_content += content.at(pos);
+            pos++;
+            continue;
+        }
+
+        end = 0;
+        for (int i = pos; i < content.size() && !(i - pos > 10); i++){
+            if (content.at(i) == ';'){
+                end = i;
+                break;
+            }
+        }
+
+        if (end == 0){
+            new_content += content.at(pos);
+            pos++;
+            continue;
+        }
+
+        std::string entity = content.substr(pos, end - pos + 1);
+        new_content += translate_entity_s(entity);
+        pos = end + 1;
+
+
+
+
+
+
 
 
     //     end = content.find(';', start);
@@ -766,10 +789,10 @@ std::string WebPage::find_entites(std::string& content){
     //         break;
     //     }
        
-    // }
+    }
 
-    // return new_content;
-    return content;
+    return new_content;
+    // return content;
 }
 
 
