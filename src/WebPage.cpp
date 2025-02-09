@@ -1,315 +1,22 @@
 #include <WebPage.hpp>
 #include <Logger.hpp>
+#include <CurlManager.hpp>
 #include <cstring>
 #include <sstream>
 
 
-std::string tagTypeToString(TagType tag){
-    return tag_to_string.at(tag);
-}
 
-TagType stringToTagType(std::string tag_type){
-    if (string_to_tag.find(tag_type) == string_to_tag.end()){
-        return TagType::UNKNOWN;
-    }
-    return string_to_tag.at(tag_type);
-}
-
-
-void Tag::print()
-{
-    LOG("Tag: ", tagTypeToString(*this->Name));
-    LOG("Start Open: ", *this->start_open);
-    LOG("Start Close: ", *this->start_close);
-    LOG("End Open: ", *this->end_open);
-    LOG("End Close: ", *this->end_close);
-}
-
-void Tag::printChildren(int indent)
-{
-    std::string spaces = " ";
-    for (int i = 0; i < indent; i++)
-    {
-        spaces += " ";
-    }
-    LOG(spaces, "Tag: ", tagTypeToString(*this->Name));
-    for (Tag *child : this->Children)
-    {
-        child->printChildren(indent + 2);
-    }
-}
-
-std::string Tag::sanitizeContent(std::string& content){
-    std::string sanitized_content = "";
-
-    int pos = 0;
-
-    int openTag = 0;
-    int closeTag = 0;
-
-
-    int opens = 0;
-
-    while (pos < content.size()){
-        openTag = content.find('<', pos);
-        if (openTag == std::string::npos){
-
-            sanitized_content += content.substr(pos);
-            break;
-        }
-
-        
-        closeTag = content.find('>', openTag);
-        if (closeTag == std::string::npos){
-            break;
-        }
-
-        TagOrganisation tag_organisation = Tag::getTagOrganisation(&content, openTag, closeTag);
-
-        if (tag_organisation == TagOrganisation::OPENING){
-            if (opens == 0){
-                sanitized_content += content.substr(pos, openTag - pos);
-            }
-
-            opens++;
-            
-        }
-        else if (tag_organisation == TagOrganisation::CLOSING){
-            opens--;
-            if (opens < 0){
-                opens = 0;
-                sanitized_content = "";
-            }
- 
-        }
-        pos = closeTag + 1;
-    }
-
-    return sanitized_content;
-}
-
-/*
-*   Check if the content is tabbed only
-*   For example, if the content is:
-*    \t\t\t\t\n
-*    or
-*    \n
-*    if it is tabbed content, for exmaple:A
-*    \t\t\t\t[anything else]\n
-*/
-std::string Tag::check_tabbed_only(std::string& content){
-
-    return "";
-}
-
-/*
-*   Beautify the content:A
-*   - isolate individual lines of the text
-*   - remove any lines that are empty
-*
-*
-*/
-std::string Tag::beautify_content(std::string& content){
-    std::string tabs_removed = "";
-
-
-/// Remove every single `\t` occurance
-    int pos = 0;
-    int tab_pos = 0;
-    while (pos < content.size()){
-        tab_pos = content.find('\t', pos);
-        if (tab_pos == std::string::npos){
-            tabs_removed += content.substr(pos);
-            break;
-        }
-        tabs_removed += content.substr(pos, tab_pos - pos);
-        pos = tab_pos + 1;
-    }
-
-
-    std::string sanitized_content = "";
-    //remove instances of multiple spaces in a row
-    pos = 0;
-    int loop = 0;
-
-    while (pos < tabs_removed.size()){
-        if (pos == tabs_removed.size() - 1){
-            sanitized_content += tabs_removed.at(pos);
-            break;
-        }
-        if (tabs_removed.at(pos) == ' '){
-
-            if (tabs_removed.at(pos + 1) == ' ' || tabs_removed.at(pos + 1) == '\n'){
-                pos++;
-                continue;
-            }
-
-            
-        }
-
-        sanitized_content += tabs_removed.at(pos);
-        pos++;
-    }
-
-
-
-    return sanitized_content;
-}
-
-std::string getIndentation(int depth) {
-    if (depth <= 0) {
-        return "";
-    }
-    return "  " + getIndentation(depth - 2);
-}
-
-std::string Tag::getContent(std::string* html_content, int indent){
-
-    if (this->Children.empty())
-    {        
-        switch (*this->Name)
-        {
-            case TagType::TITLE:
-            {
-                return "# " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "\n";
-            }
-            case TagType::H1:
-            {
-                return "## " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
-            }
-            case TagType::H2:
-            {
-                return "### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
-            }
-            case TagType::H3:
-            {
-                return "#### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
-            }
-            case TagType::H4:
-            {
-                return "##### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
-            }
-            case TagType::H5:
-            {
-                return "###### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
-            }
-            case TagType::H6:
-            {
-                return "####### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
-            }
-            case TagType::B:
-            {
-                return "**" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "**";
-            }
-            case TagType::I:
-            {
-                return "*" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "*";
-            }
-            case TagType::TH:
-            {
-                return "**" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "** ";
-            }
-            case TagType::TD:
-            {
-                return beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)) + "\n\n");
-            }
-            default:
-            {
-                return beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
-                break;
-            }
-        }
-
-    }
-    
-    std::string content = "";
-    Tag* last_child = this;
-
-    for (Tag* child : this->Children){
-
-        std::string direct_content = html_content->substr(*last_child->start_close + 1, *child->start_open - *last_child->start_close - 1);
-        direct_content = beautify_content(sanitizeContent(direct_content));
-        content += direct_content;
-
-        std::string child_content = child->getContent(html_content, indent + 2);
-        content += child_content;
-        last_child = child;
-
-    }
-
-    std::string direct_content = html_content->substr(*last_child->end_close + 1, *this->end_open - *last_child->end_close - 1);
-    direct_content = beautify_content(sanitizeContent(direct_content));
-    content += direct_content;
-
-    switch (*this->Name){
-        case TagType::TITLE:
-        {
-            return "# " + content + "\n";
-        }
-        case TagType::H1:
-        {
-            return "## " + content;
-        }
-        case TagType::H2:
-        {
-            return "### " + content;
-        }
-        case TagType::H3:
-        {
-            return "#### " + content;
-        }
-        case TagType::H4:
-        {
-            return "##### " + content;
-        }
-        case TagType::H5:
-        {
-            return "###### " + content;
-        }
-        case TagType::H6:
-        {
-            return "####### " + content;
-        }
-        case TagType::B:
-        {
-            return "**" + content + "**";
-        }
-        case TagType::I:
-        {
-            return "*" + content + "*";
-        }
-        case TagType::TH:
-        {
-            return "**" + content + "**";
-        }
-        case TagType::TD:
-        {
-            return content + "\n\n";
-        }
-
-        default:
-        {
-            return content;
-        }
-    }
-}
-
-TagOrganisation Tag::getTagOrganisation(std::string* content, int start, int end)
-{
-    if (content->at(start + 1) == '/')
-    {
-        return TagOrganisation::CLOSING;
-    }
-    else if (content->at(end - 1) == '/')
-    {
-        return TagOrganisation::SELF_CLOSING;
-    }
-    else
-    {
-        return TagOrganisation::OPENING;
-    }
-}
-
+/**
+ * @brief Translates an HTML entity to its corresponding wide character.
+ *
+ * This function takes an HTML entity in the form of a string and converts it
+ * to its corresponding wide character. The entity is expected to be in the
+ * format "&#NNNN;" or "&#xHHHH;", where NNNN is a decimal number and HHHH is
+ * a hexadecimal number.
+ *
+ * @param entity The HTML entity string to be translated.
+ * @return The wide character corresponding to the HTML entity.
+ */
 wchar_t WebPage::translate_entity_w(std::string entity){ //int start, int end){
     // // std::string entity = this->html_content->substr(start, end - start);
     std::string code = entity.substr(2, entity.size() - 1);
@@ -322,6 +29,18 @@ wchar_t WebPage::translate_entity_w(std::string entity){ //int start, int end){
     return std::stoi(code);
 }
 
+
+/**
+ * @brief Translates an HTML entity to its corresponding UTF-8 character.
+ *
+ * This function takes an HTML entity in the form of a string (e.g., "&#x2009;" or "&#8201;")
+ * and converts it to its corresponding UTF-8 character.
+ *
+ * @param entity The HTML entity to be translated. It should be in the form of "&#xHHHH;" for
+ *               hexadecimal entities or "&#DDDD;" for decimal entities.
+ * @return A string containing the UTF-8 character corresponding to the given HTML entity.
+ *         If the entity is not valid, the original entity string is returned.
+ */
 std::string WebPage::translate_entity_s(std::string entity){
 
     int codePoint = 0;
@@ -356,17 +75,40 @@ std::string WebPage::translate_entity_s(std::string entity){
 }
 
 
-WebPage::WebPage(const char *url, const char *html_content)
+/**
+ * @brief Constructs a new WebPage object.
+ * 
+ * This constructor initializes a WebPage object with the given URL. It fetches the HTML content
+ * from the URL using the curl_manager, initializes an empty deque for Tags, and allocates memory
+ * for the Title and Description strings. The markdown_content is initialized to nullptr.
+ * 
+ * @param url The URL of the web page to be fetched and processed.
+ */
+WebPage::WebPage(const char *url)
 {
     this->url = new std::string(url);
-    this->html_content = new std::string(html_content);
+    this->html_content = curl_manager.get(url);
     this->Tags = std::deque<Tag *>();
     this->Title = new std::string();
     this->Description = new std::string();
+    this->markdown_content = nullptr;
 
     LOG("Created WebPage object for URL: ", this->url->c_str());
 }
 
+/**
+ * @brief Destructor for the WebPage class.
+ *
+ * This destructor is responsible for cleaning up the dynamically allocated memory
+ * associated with a WebPage object. It performs the following actions:
+ * - Logs the deletion of the WebPage object along with its URL.
+ * - Deletes the dynamically allocated URL string.
+ * - Deletes the dynamically allocated HTML content string.
+ * - Deletes the dynamically allocated Title string.
+ * - Deletes the dynamically allocated Description string.
+ * - Deletes the dynamically allocated markdown content string if it is not nullptr.
+ * - Iterates through the list of Tags and deletes each Tag object.
+ */
 WebPage::~WebPage()
 {
     LOG("Deleted WebPage object for URL: ", this->url->c_str());
@@ -375,13 +117,32 @@ WebPage::~WebPage()
     delete this->Title;
     delete this->Description;
 
+    if (this->markdown_content != nullptr)
+    {
+        delete this->markdown_content;
+    }
+
     for (Tag *tag : this->Tags)
     {
         delete tag;
     }
 }
 
-TagParseError WebPage::parseTagTree()
+/**
+ * @brief Parses the HTML content of the WebPage to construct a tree of tags.
+ * 
+ * This function scans through the HTML content of the WebPage, identifies tags,
+ * and organizes them into a tree structure. It handles different types of tags
+ * including opening, closing, and self-closing tags. The function also checks
+ * for the presence of a DOCTYPE declaration and logs appropriate messages if
+ * it is not found.
+ * 
+ * @return TagParseCode 
+ * - NO_DOCTYPE: If no DOCTYPE declaration is found.
+ * - HTML_MALFORMED: If there are unclosed tags in the HTML content.
+ * - NO_TAG_PARSE_ERROR: If the HTML content is parsed successfully without errors.
+ */
+TagParseCode WebPage::parseTagTree()
 {
     
     int start = -1;
@@ -412,7 +173,7 @@ TagParseError WebPage::parseTagTree()
             if (pos == std::string::npos)
             {
                 LOG("<!DOCTYPE HTML> not found, WebPage not parseable");
-                return TagParseError::NO_DOCTYPE;
+                return TagParseCode::NO_DOCTYPE;
             }
         }
     }
@@ -429,25 +190,6 @@ TagParseError WebPage::parseTagTree()
 
     while (pos < this->html_content->size())
     {
-
-        // LOG("\n=========================================================");
-
-        // LOG("Current pos: ", pos);
-
-        // LOG("---------------------------------------------------------\n");
-
-
-
-        // LOG("Tag stack size: ", tag_stack.size());
-        // LOG("Tag branch size: ", tag_branch.size());
-
-        // LOG ("Tag Branch:\n");
-        // for (Tag* tag : tag_branch){
-        //     LOG("   ", tag->Name->c_str());
-        // }
-
-        // LOG("---------------------------------------------------------\n");
-
         // #########################################################################################
         //
         //           Reset variables for next iteration
@@ -489,7 +231,7 @@ TagParseError WebPage::parseTagTree()
         // LOG("Found tag: ", tag, " at pos: ", start_open, " to ", pos);
 
 
-        tag_organisation = Tag::getTagOrganisation(this->html_content, start_open, pos);
+        tag_organisation = SingleTag::getTagOrganisation(this->html_content, start_open, pos);
         if (tag_organisation == TagOrganisation::CLOSING)
         {
             start_addition = 1;
@@ -514,12 +256,6 @@ TagParseError WebPage::parseTagTree()
             tag_type = stringToTagType(this->html_content->substr(start_open + 1 + start_addition, next_space - start_open - 1 - start_addition));
         }
 
-        // LOG(tag_type, " is ", (
-        //                 tag_organisation == TagOrganisation::SELF_CLOSING ? "Self Closing" : tag_organisation == TagOrganisation::CLOSING ? "Closing"
-                                                                                                                                            // : "Opening"));
-
-
-
         // ###################################################################################
         //
         //          Push the found tag to the stack
@@ -532,20 +268,7 @@ TagParseError WebPage::parseTagTree()
             switch (tag_type)
             {
 
-
                 case TagType::META:
-                {
-                    // LOG("Found meta tag");
-                    continue;
-                    break;
-                }
-
-                case TagType::TITLE:
-                {
-                    // LOG("Found title tag");
-                    break;
-                }
-
                 case TagType::LINK:
                 case TagType::IMG:
                 case TagType::INPUT__TEXT:
@@ -572,7 +295,7 @@ TagParseError WebPage::parseTagTree()
 
             }
 
-            SingleTag *sTag = new SingleTag(tag_type, tag, start_open, pos);
+            SingleTag *sTag = new SingleTag(tag_type, start_open, pos);
             tag_stack.push_front(sTag);
             continue;
         }
@@ -587,7 +310,7 @@ TagParseError WebPage::parseTagTree()
         if (tag_organisation == TagOrganisation::SELF_CLOSING)
         {
             //Handle self closing tags that contain links
-            // LOG("Self closing tag: ", tag_type);
+
             continue;
         }
 
@@ -597,36 +320,25 @@ TagParseError WebPage::parseTagTree()
         //
         // ###################################################################################
 
-        // LOG("Closing tag: ", tag_type);
 
         if (tag_stack.empty())
         {
-            // LOG("No opening tag to match closing tag: ", tag_type);
             continue;
         }
 
         SingleTag *sTag = tag_stack.front();
 
-        // LOG("Top of stack: ", sTag->tag_type->c_str());
-        // LOG("Tag ", sTag->tag->c_str());
 
         if (tag_type != *sTag->tag_type)
         {
-            // LOG("Closing tag: ", tag_type, " does not match opening tag: ", *sTag->tag_type);
             continue;
         }
         tag_stack.pop_front();
 
 
-        // LOG("Matched closing tag: ", tag_type, " with opening tag: ", *sTag->tag_type);
-
         Tag *new_tag = new Tag(*sTag->tag_type, *sTag->start_open, *sTag->start_close, start_open, pos);
 
         delete sTag;
-
-        // LOG("Created tag: ", new_tag->Name->c_str());
-
-
 
         // ###################################################################################
         //
@@ -642,19 +354,16 @@ TagParseError WebPage::parseTagTree()
         }
 
         for (Tag* orphaned_node : tag_branch){
-            // LOG("Orphaned node: ", orphaned_node->Name->c_str());
-            // LOG(*new_tag->start_open, " < ", *orphaned_node->start_open, " && ", *orphaned_node->end_close, " < ", *new_tag->end_close);
+
             if (*new_tag->start_open < *orphaned_node->start_open && *orphaned_node->end_close < *new_tag->end_close)
             {
-                // LOG("New tag is parent of orphaned tag: ", orphaned_node->Name->c_str());
                 new_tag->Children.push_back(orphaned_node);
                 orphaned_node->Parent = new_tag;
             }
         }
 
         for (int i = 0; i < new_tag->Children.size(); i++){
-            // LOG("Child: ", new_tag->Children[i]->Name->c_str());
-            //remove child from branch
+
             auto it = std::find(tag_branch.begin(), tag_branch.end(), new_tag->Children[i]);
             if (it != tag_branch.end()) {
                 tag_branch.erase(it);
@@ -674,22 +383,32 @@ TagParseError WebPage::parseTagTree()
             delete sTag;
         }
         this->Tags = tag_branch;
-        return TagParseError::HTML_MALFORMED;
+        return TagParseCode::HTML_MALFORMED;
     }
 
     LOG("No unclosed tags found");
     this->Tags = tag_branch;
-    return TagParseError::NO_TAG_PARSE_ERROR;
+    return TagParseCode::NO_TAG_PARSE_ERROR;
 
 }
 
 
-// remove all instances where there are more than 2 new lines
+
+/**
+ * @brief Sanitizes the given markdown content by removing excessive new lines and translating HTML entities.
+ *
+ * This function processes the input markdown content to ensure that there are no more than two consecutive new lines.
+ * Additionally, it translates HTML entities (e.g., &amp;, &lt;, &gt;) into their corresponding characters.
+ *
+ * @param content The markdown content to be sanitized. This parameter is passed by reference.
+ * @return A sanitized version of the input markdown content.
+ */
 std::string WebPage::sanitize_markdown(std::string& content){
 
     std::string sanitized_content = "";
 
     int pos = 0;
+    int end = 0;
     int new_lines = 0;
 
     while (pos < content.size()){
@@ -706,37 +425,14 @@ std::string WebPage::sanitize_markdown(std::string& content){
             }
             new_lines = 0;
         }
-        sanitized_content += content.at(pos);
-        pos++;
-    }
 
-    return sanitized_content;
-}
-
-
-void WebPage::write_markdown(std::string& content){
-    std::ofstream file;
-    file.open("output.md");
-    file << content;
-    file.close();
-}
-
-std::string WebPage::find_entites(std::string& content){
-    std::string new_content = "";
-
-    int pos = 0;
-    // int start = 0;
-    int end = 0;
-
-
-
-    while (pos < content.size()){
 
         if (content.at(pos) != '&'){
-            new_content += content.at(pos);
+            sanitized_content += content.at(pos);
             pos++;
             continue;
         }
+
 
         end = 0;
         for (int i = pos; i < content.size() && !(i - pos > 10); i++){
@@ -747,112 +443,161 @@ std::string WebPage::find_entites(std::string& content){
         }
 
         if (end == 0){
-            new_content += content.at(pos);
+            sanitized_content += content.at(pos);
             pos++;
             continue;
         }
 
         std::string entity = content.substr(pos, end - pos + 1);
-        new_content += translate_entity_s(entity);
+        sanitized_content += translate_entity_s(entity);
         pos = end + 1;
-
-
-
-
-
-
-
-
-    //     end = content.find(';', start);
-    //     if (end == std::string::npos){
-    //         new_content += content.substr(pos);
-    //         break;
-    //     }
-
-    //     if (end - start > 10){
-    //         new_content += content.substr(pos, start - pos);
-    //         pos = start + 1;
-    //         continue;
-    //     }
-
-    //     std::string entity = content.substr(start, end - start + 1);
-    //     new_content += translate_entity_s(entity);
-
-    //     start = content.find('&', end + 1);
-    //     if (start != std::string::npos){
-    //         new_content += content.substr(end + 1, start - end - 1);
-    //         pos = end + 1;
-    //         continue;
-    //     }       
-    //     if (start == std::string::npos){
-    //         new_content += content.substr(end + 1);
-    //         break;
-    //     }
-       
     }
 
-    return new_content;
-    // return content;
+    return sanitized_content;
 }
 
 
-void WebPage::scrape()
+/**
+ * @brief Writes the markdown content of the WebPage to a file.
+ *
+ * This function checks if the WebPage object has markdown content. If the content is present,
+ * it writes the content to a file named "output.md". If the content is not present, it logs
+ * an error message and returns an appropriate error code.
+ *
+ * @return WriteCode::NO_MARKDOWN_CONTENT if there is no markdown content to write.
+ *         WriteCode::NO_WRITE_ERROR if the markdown content is successfully written to the file.
+ */
+WriteCode WebPage::write_markdown(){
+
+    if (this->markdown_content == nullptr){
+        LOG("No markdown content to write");
+        return WriteCode::NO_MARKDOWN_CONTENT;
+    }
+
+    std::ofstream file;
+    file.open("output.md");
+    file << *this->markdown_content;
+    file.close();
+
+    return WriteCode::NO_WRITE_ERROR;
+}
+
+
+/**
+ * @brief Scrapes the HTML content of the web page and converts it to markdown.
+ * 
+ * This function checks if the HTML content is available, logs the scraping process,
+ * parses the tag tree, and converts the content to markdown format. It handles
+ * different parsing errors and returns appropriate scrape codes.
+ * 
+ * @return ScrapeCode indicating the result of the scraping process.
+ *         - ScrapeCode::NO_HTML_CONTENT: No HTML content to scrape.
+ *         - ScrapeCode::NO_DOCTYPE_FOUND: No DOCTYPE found in the HTML.
+ *         - ScrapeCode::MALFORMED_HTML: HTML is malformed and unable to generate a full tree.
+ *         - ScrapeCode::NO_SCRAPE_ERROR: Scraping completed successfully without errors.
+ */
+ScrapeCode WebPage::scrape()
 {
 
     if (this->html_content == nullptr)
     {
         LOG("No HTML content to scrape");
-        return;
+        return ScrapeCode::NO_HTML_CONTENT;
     }
-
 
 
     LOG("Scraping URL: ", this->url->c_str());
 
-    LOG("HTML Content: ", this->html_content->c_str());
-
-
-    // std::deque<Tag*> tag_tree;
-    TagParseError error = this->parseTagTree();
-
+    TagParseCode error = this->parseTagTree();
 
     switch (error)
     {
-        case TagParseError::NO_DOCTYPE:
+        case TagParseCode::NO_DOCTYPE:
         {
             LOG("No DOCTYPE found");
-            return;
+            return ScrapeCode::NO_DOCTYPE_FOUND;
             break;
         }
 
-        case TagParseError::HTML_MALFORMED:
+        case TagParseCode::HTML_MALFORMED:
         {
             LOG("HTML is malformed, unable to generate full tree");
             //being cool and not breaking to abuse the default call
+
         }
         default:
         {
-            // for (Tag* tag : this->Tags){
-            //     tag->printChildTags();
-            // }
-
-            std:: string content = "";
+            std::string content = "";
             for (Tag* tag : this->Tags){
                 content += tag->getContent(this->html_content);
             }
-            LOG("Content: ", content);
-
-            content = "# " + *this->url + "\n\n" + content;
-            this->write_markdown(find_entites(sanitize_markdown(content)));
+            content = "# URL: \n- " + *this->url + "\n\n" + content;
+            this->markdown_content = new std::string(sanitize_markdown(content));
+            this->marked_down = true;
             break;
         }
     }
 
-    // wchar_t translated = this->translate_entity_w("&#167;");
-    // WLOG("Translated: ", translated);
-    std::string utf8 = this->translate_entity_s("&#167;");
-    LOG("UTF-8: ", utf8);
-    LOG(getIndentation(10), "Hello");
-
     LOG("Finished scraping URL: ", this->url->c_str());
+
+    if (error == TagParseCode::HTML_MALFORMED){
+        return ScrapeCode::MALFORMED_HTML;
+    }
+
+    return ScrapeCode::NO_SCRAPE_ERROR;
+}
+
+/**
+ * @brief Retrieves the markdown content of the web page.
+ *
+ * This function checks if the web page has been marked down. If it has,
+ * it returns the markdown content as a string. If the web page has not
+ * been marked down, it returns an empty string.
+ *
+ * @return std::string The markdown content of the web page if it exists,
+ *         otherwise an empty string.
+ */
+std::string WebPage::get_markdown()
+{
+    if (this->marked_down)
+    {
+        return std::string(*this->markdown_content);
+    }
+
+    return "";
+}
+
+/**
+ * @brief Retrieves the URL of the web page.
+ * 
+ * @return std::string The URL of the web page.
+ */
+std::string WebPage::get_url()
+{
+    return std::string(*this->url);
+}
+
+/**
+ * @brief Retrieves the title of the web page.
+ * 
+ * This function returns the title of the web page as a std::string.
+ * 
+ * @return std::string The title of the web page.
+ */
+std::string WebPage::get_title()
+{
+    return std::string(*this->Title);
+}
+
+/**
+ * @brief Retrieves the description of the web page.
+ * 
+ * This function returns a string that contains the description of the web page.
+ * The description is stored in the member variable `Description`.
+ * 
+ * @return std::string The description of the web page.
+ */
+std::string WebPage::get_description()
+{
+    return std::string(*this->Description);
 }

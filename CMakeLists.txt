@@ -19,13 +19,15 @@ add_executable(WebCrawler ${SOURCES})
 
 
 
-
 if(NOT WIN32)
 
     find_package(CURL REQUIRED)
     target_link_libraries(WebCrawler PRIVATE CURL::libcurl)
 
     target_link_libraries(WebCrawler PRIVATE stdc++) # add libcurl.a here
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(/O2)
+    endif()
 else()
 
     set(LIBS "${CMAKE_SOURCE_DIR}/src/ext/libs")
@@ -38,5 +40,9 @@ else()
         Crypt32.lib
         Wldap32.lib
         )
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(-O3)
+    endif()
 endif()
 
