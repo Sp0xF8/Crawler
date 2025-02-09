@@ -64,6 +64,7 @@ enum TagType
     COMMENT,
     UNKNOWN,
     CITE,
+    FONT
 };
 
 const std::unordered_map<std::string, TagType> string_to_tag = {
@@ -107,7 +108,8 @@ const std::unordered_map<std::string, TagType> string_to_tag = {
     {"hr", HR},
     {"!--", COMMENT},
     {"unknown", UNKNOWN},
-    {"cite", CITE}
+    {"cite", CITE},
+    {"font", FONT}
 };
 
 const std::unordered_map<TagType, std::string> tag_to_string = {
@@ -151,7 +153,8 @@ const std::unordered_map<TagType, std::string> tag_to_string = {
     {HR, "hr"},
     {COMMENT, "!--"},
     {UNKNOWN, "unknown"},
-    {CITE, "cite"}
+    {CITE, "cite"},
+    {FONT, "font"}
 };
 
 
@@ -223,12 +226,15 @@ struct Tag
     }
 
     void print();
-    void printChildTags(int indent = 0);
+    void printChildren(int indent = 0);
     std::string getContent(std::string* html_content, int indent = 0);
     static TagOrganisation getTagOrganisation(std::string* content, int start, int end);
 
 private:
     std::string sanitizeContent(std::string& content);
+    std::string beautify_content(std::string& content);
+    std::string check_tabbed_only(std::string& content);
+
 
 };
 
@@ -252,7 +258,12 @@ class WebPage
         std::deque<Tag*> Tags;
 
         TagParseError parseTagTree();
-        std::string translate_entity(int start, int end);
+
+        wchar_t translate_entity_w(std::string entity);
+        std::string translate_entity_s(std::string entity);
+        std::string find_entites(std::string& content);
+        void write_markdown(std::string& content);
+        std::string sanitize_markdown(std::string& content);
 
 
 };

@@ -1,6 +1,7 @@
 #include <WebPage.hpp>
 #include <Logger.hpp>
 #include <cstring>
+#include <sstream>
 
 
 std::string tagTypeToString(TagType tag){
@@ -15,10 +16,6 @@ TagType stringToTagType(std::string tag_type){
 }
 
 
-
-
-
-
 void Tag::print()
 {
     LOG("Tag: ", tagTypeToString(*this->Name));
@@ -28,7 +25,7 @@ void Tag::print()
     LOG("End Close: ", *this->end_close);
 }
 
-void Tag::printChildTags(int indent)
+void Tag::printChildren(int indent)
 {
     std::string spaces = " ";
     for (int i = 0; i < indent; i++)
@@ -38,7 +35,7 @@ void Tag::printChildTags(int indent)
     LOG(spaces, "Tag: ", tagTypeToString(*this->Name));
     for (Tag *child : this->Children)
     {
-        child->printChildTags(indent + 2);
+        child->printChildren(indent + 2);
     }
 }
 
@@ -91,6 +88,74 @@ std::string Tag::sanitizeContent(std::string& content){
     return sanitized_content;
 }
 
+/*
+*   Check if the content is tabbed only
+*   For example, if the content is:
+*    \t\t\t\t\n
+*    or
+*    \n
+*    if it is tabbed content, for exmaple:A
+*    \t\t\t\t[anything else]\n
+*/
+std::string Tag::check_tabbed_only(std::string& content){
+
+    return "";
+}
+
+/*
+*   Beautify the content:A
+*   - isolate individual lines of the text
+*   - remove any lines that are empty
+*
+*
+*/
+std::string Tag::beautify_content(std::string& content){
+    std::string tabs_removed = "";
+
+
+/// Remove every single `\t` occurance
+    int pos = 0;
+    int tab_pos = 0;
+    while (pos < content.size()){
+        tab_pos = content.find('\t', pos);
+        if (tab_pos == std::string::npos){
+            tabs_removed += content.substr(pos);
+            break;
+        }
+        tabs_removed += content.substr(pos, tab_pos - pos);
+        pos = tab_pos + 1;
+    }
+
+
+    std::string sanitized_content = "";
+    //remove instances of multiple spaces in a row
+    pos = 0;
+    int loop = 0;
+
+    while (pos < tabs_removed.size()){
+        if (pos == tabs_removed.size() - 1){
+            sanitized_content += tabs_removed.at(pos);
+            break;
+        }
+        if (tabs_removed.at(pos) == ' '){
+
+            if (tabs_removed.at(pos + 1) == ' ' || tabs_removed.at(pos + 1) == '\n'){
+                pos++;
+                continue;
+            }
+
+            
+        }
+
+        sanitized_content += tabs_removed.at(pos);
+        pos++;
+    }
+
+
+
+    return sanitized_content;
+}
+
 std::string getIndentation(int depth) {
     if (depth <= 0) {
         return "";
@@ -98,53 +163,135 @@ std::string getIndentation(int depth) {
     return "  " + getIndentation(depth - 2);
 }
 
-
-
 std::string Tag::getContent(std::string* html_content, int indent){
 
     if (this->Children.empty())
     {        
-        return sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1));
-    }
+        switch (*this->Name)
+        {
+            case TagType::TITLE:
+            {
+                return "# " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "\n";
+            }
+            case TagType::H1:
+            {
+                return "## " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H2:
+            {
+                return "### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H3:
+            {
+                return "#### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H4:
+            {
+                return "##### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H5:
+            {
+                return "###### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::H6:
+            {
+                return "####### " + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+            }
+            case TagType::B:
+            {
+                return "**" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "**";
+            }
+            case TagType::I:
+            {
+                return "*" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "*";
+            }
+            case TagType::TH:
+            {
+                return "**" + beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1))) + "** ";
+            }
+            case TagType::TD:
+            {
+                return beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)) + "\n\n");
+            }
+            default:
+            {
+                return beautify_content(sanitizeContent(html_content->substr(*this->start_close + 1, *this->end_open - *this->start_close - 1)));
+                break;
+            }
+        }
 
+    }
     
     std::string content = "";
-    std::deque<std::string> content_stack;
-
     Tag* last_child = this;
 
     for (Tag* child : this->Children){
 
-
         std::string direct_content = html_content->substr(*last_child->start_close + 1, *child->start_open - *last_child->start_close - 1);
-        direct_content = sanitizeContent(direct_content);
+        direct_content = beautify_content(sanitizeContent(direct_content));
         content += direct_content;
-        // if (direct_content == ", and the radical transformation of traditional plot and character development. Though most of his adult life was spent abroad, his fictional universe centres on Dublin and is largely populated by characters who closely resemble family members, enemies and friends from his time there. "){
-        //     LOG("James Augustine Aloysius Joyce");
-        // }
-        // content_stack.push_back(direct_content);
+
         std::string child_content = child->getContent(html_content, indent + 2);
-        // content_stack.push_back(child_content);
         content += child_content;
         last_child = child;
-
 
     }
 
     std::string direct_content = html_content->substr(*last_child->end_close + 1, *this->end_open - *last_child->end_close - 1);
-    direct_content = sanitizeContent(direct_content);
+    direct_content = beautify_content(sanitizeContent(direct_content));
     content += direct_content;
 
-    // for (std::string child_content : content_stack){
-    //     if (child_content.empty()){
-    //         continue;
-    //     }
-    //     // content += getIndentation(indent);
-    //     content += child_content;
-    //     // content += " ";
-    // }
+    switch (*this->Name){
+        case TagType::TITLE:
+        {
+            return "# " + content + "\n";
+        }
+        case TagType::H1:
+        {
+            return "## " + content;
+        }
+        case TagType::H2:
+        {
+            return "### " + content;
+        }
+        case TagType::H3:
+        {
+            return "#### " + content;
+        }
+        case TagType::H4:
+        {
+            return "##### " + content;
+        }
+        case TagType::H5:
+        {
+            return "###### " + content;
+        }
+        case TagType::H6:
+        {
+            return "####### " + content;
+        }
+        case TagType::B:
+        {
+            return "**" + content + "**";
+        }
+        case TagType::I:
+        {
+            return "*" + content + "*";
+        }
+        case TagType::TH:
+        {
+            return "**" + content + "**";
+        }
+        case TagType::TD:
+        {
+            return content + "\n\n";
+        }
 
-    return content;
+        default:
+        {
+            return content;
+        }
+    }
 }
 
 TagOrganisation Tag::getTagOrganisation(std::string* content, int start, int end)
@@ -161,6 +308,51 @@ TagOrganisation Tag::getTagOrganisation(std::string* content, int start, int end
     {
         return TagOrganisation::OPENING;
     }
+}
+
+wchar_t WebPage::translate_entity_w(std::string entity){ //int start, int end){
+    // // std::string entity = this->html_content->substr(start, end - start);
+    std::string code = entity.substr(2, entity.size() - 1);
+
+    if (code.at(0) == 'x'){
+        code = code.substr(1);
+        return std::stoi(code, nullptr, 16);
+    }
+
+    return std::stoi(code);
+}
+
+std::string WebPage::translate_entity_s(std::string entity){
+
+    int codePoint = 0;
+    if (entity[2] == 'x' || entity[2] == 'X') { // Hexadecimal entity (&#x2009;)
+        std::stringstream ss(entity.substr(3, entity.size() - 4)); // Extract hex part
+        ss >> std::hex >> codePoint;
+    } else if (entity[1] != '#') { // Not a valid entity
+        return entity;
+    } else { // Decimal entity (&#8201;)
+        codePoint = std::stoi(entity.substr(2, entity.size() - 3));
+    }
+
+    // Convert to UTF-8 string
+    std::string utf8Char;
+    if (codePoint <= 0x7F) { // 1-byte UTF-8
+        utf8Char += static_cast<char>(codePoint);
+    } else if (codePoint <= 0x7FF) { // 2-byte UTF-8
+        utf8Char += static_cast<char>(0xC0 | ((codePoint >> 6) & 0x1F));
+        utf8Char += static_cast<char>(0x80 | (codePoint & 0x3F));
+    } else if (codePoint <= 0xFFFF) { // 3-byte UTF-8
+        utf8Char += static_cast<char>(0xE0 | ((codePoint >> 12) & 0x0F));
+        utf8Char += static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F));
+        utf8Char += static_cast<char>(0x80 | (codePoint & 0x3F));
+    } else { // 4-byte UTF-8
+        utf8Char += static_cast<char>(0xF0 | ((codePoint >> 18) & 0x07));
+        utf8Char += static_cast<char>(0x80 | ((codePoint >> 12) & 0x3F));
+        utf8Char += static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F));
+        utf8Char += static_cast<char>(0x80 | (codePoint & 0x3F));
+    }
+
+    return utf8Char;
 }
 
 
@@ -491,6 +683,119 @@ TagParseError WebPage::parseTagTree()
 
 }
 
+
+// remove all instances where there are more than 2 new lines
+std::string WebPage::sanitize_markdown(std::string& content){
+
+    std::string sanitized_content = "";
+
+    int pos = 0;
+    int new_lines = 0;
+
+    while (pos < content.size()){
+        if (content.at(pos) == '\n'){
+            new_lines++;
+            if (new_lines > 2){
+                pos++;
+                continue;
+            }
+        }
+        else{
+            if (new_lines == 1){
+                sanitized_content += "\n";
+            }
+            new_lines = 0;
+        }
+        sanitized_content += content.at(pos);
+        pos++;
+    }
+
+    return sanitized_content;
+}
+
+
+void WebPage::write_markdown(std::string& content){
+    std::ofstream file;
+    file.open("output.md");
+    file << content;
+    file.close();
+}
+
+std::string WebPage::find_entites(std::string& content){
+    std::string new_content = "";
+
+    int pos = 0;
+    // int start = 0;
+    int end = 0;
+
+
+
+    while (pos < content.size()){
+
+        if (content.at(pos) != '&'){
+            new_content += content.at(pos);
+            pos++;
+            continue;
+        }
+
+        end = 0;
+        for (int i = pos; i < content.size() && !(i - pos > 10); i++){
+            if (content.at(i) == ';'){
+                end = i;
+                break;
+            }
+        }
+
+        if (end == 0){
+            new_content += content.at(pos);
+            pos++;
+            continue;
+        }
+
+        std::string entity = content.substr(pos, end - pos + 1);
+        new_content += translate_entity_s(entity);
+        pos = end + 1;
+
+
+
+
+
+
+
+
+    //     end = content.find(';', start);
+    //     if (end == std::string::npos){
+    //         new_content += content.substr(pos);
+    //         break;
+    //     }
+
+    //     if (end - start > 10){
+    //         new_content += content.substr(pos, start - pos);
+    //         pos = start + 1;
+    //         continue;
+    //     }
+
+    //     std::string entity = content.substr(start, end - start + 1);
+    //     new_content += translate_entity_s(entity);
+
+    //     start = content.find('&', end + 1);
+    //     if (start != std::string::npos){
+    //         new_content += content.substr(end + 1, start - end - 1);
+    //         pos = end + 1;
+    //         continue;
+    //     }       
+    //     if (start == std::string::npos){
+    //         new_content += content.substr(end + 1);
+    //         break;
+    //     }
+       
+    }
+
+    return new_content;
+    // return content;
+}
+
+
 void WebPage::scrape()
 {
 
@@ -516,6 +821,7 @@ void WebPage::scrape()
         case TagParseError::NO_DOCTYPE:
         {
             LOG("No DOCTYPE found");
+            return;
             break;
         }
 
@@ -535,9 +841,18 @@ void WebPage::scrape()
                 content += tag->getContent(this->html_content);
             }
             LOG("Content: ", content);
+
+            content = "# " + *this->url + "\n\n" + content;
+            this->write_markdown(find_entites(sanitize_markdown(content)));
             break;
         }
     }
+
+    // wchar_t translated = this->translate_entity_w("&#167;");
+    // WLOG("Translated: ", translated);
+    std::string utf8 = this->translate_entity_s("&#167;");
+    LOG("UTF-8: ", utf8);
+    LOG(getIndentation(10), "Hello");
 
     LOG("Finished scraping URL: ", this->url->c_str());
 }

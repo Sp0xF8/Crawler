@@ -55,6 +55,22 @@ class Logger {
             }
         }
 
+        template <typename ...Args>
+        void wlog(Args... args) {
+            std::wcout.imbue(std::locale("en_US.utf8"));
+            (std::wcout << ... << args) << std::endl;
+
+
+            std::wofstream file(logFile, std::ios::app);
+            if (file.is_open()) {
+                ((file << args << " "), ...);
+                file << std::endl;
+                file.close();
+            } else {
+                std::wcerr << "Failed to open log file" << std::endl;
+            }
+        }
+
         void close_file(){
 
         }
@@ -74,4 +90,10 @@ extern Logger logger;
 #define LOG(...) logger.log(__VA_ARGS__)
 #else
 #define LOG(...)
+#endif
+
+#ifdef _DEBUG
+#define WLOG(...) logger.wlog(__VA_ARGS__)
+#else
+#define WLOG(...)
 #endif
