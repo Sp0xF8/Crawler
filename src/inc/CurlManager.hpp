@@ -1,8 +1,7 @@
 #pragma once
 
 #include <curl/curl.h>
-
-#include <WebPage.hpp>
+#include <string>
 
 class CurlManager {
 
@@ -11,7 +10,7 @@ class CurlManager {
         CurlManager();
         ~CurlManager();
 
-        WebPage* get(const char* url);
+        std::string* get(const char* url);
 
     private:
 
