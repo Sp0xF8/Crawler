@@ -138,8 +138,11 @@ WebPage::~WebPage()
  * it is not found.
  * 
  * @return TagParseCode 
+ * 
  * - NO_DOCTYPE: If no DOCTYPE declaration is found.
+ * 
  * - HTML_MALFORMED: If there are unclosed tags in the HTML content.
+ * 
  * - NO_TAG_PARSE_ERROR: If the HTML content is parsed successfully without errors.
  */
 TagParseCode WebPage::parseTagTree()

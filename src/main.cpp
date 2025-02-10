@@ -2,6 +2,7 @@
 #include <curl/curl.h>
 
 #include <WebPage.hpp>
+#include <Logger.hpp>
 
 
 int main() {
@@ -12,6 +13,7 @@ int main() {
     if(webpage != nullptr) {
         webpage->scrape();
         webpage->write_markdown();
+        LOG(webpage->get_markdown());
         delete webpage;
     }
 
