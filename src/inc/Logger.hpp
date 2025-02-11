@@ -6,6 +6,7 @@
 #include <fstream>
 #include <string>
 #include <filesystem>
+#include <windows.h>
 
 
 class Logger {
@@ -13,7 +14,7 @@ class Logger {
     public:
 
         Logger(){
-
+            this->hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 
             std::string lastLogFile;
             //if the directory logs doesnt exist, make one
@@ -41,9 +42,53 @@ class Logger {
         }
         ~Logger() {}
 
+
+        template <typename ...Args>
+        void warn(Args... args) {
+            SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+            std::cerr << "[WARNING] ";
+            SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+            (std::cerr << ... << args) << std::endl;
+            SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+
+            std::ofstream file(logFile, std::ios::app);
+            if (file.is_open()) {
+                ((file << args << " "), ...);
+                file << std::endl;
+                file.close();
+            } else {
+                std::cerr << "Failed to open log file" << std::endl;
+            }
+        }
+
+
+
+        template <typename ...Args>
+        void error_log(Args... args) {
+            SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
+            std::cerr << "[ERROR] ";
+            (std::cerr << ... << args) << std::endl;
+            SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+
+            std::ofstream file(logFile, std::ios::app);
+            if (file.is_open()) {
+                ((file << args << " "), ...);
+                file << std::endl;
+                file.close();
+            } else {
+                std::cerr << "Failed to open log file" << std::endl;
+            }
+        }
+
+
+
         template <typename ...Args>
         void log(Args... args) {
-           (std::cout << ... << args) << std::endl;
+            SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+            std::cout << "[INFO] ";
+            SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+            (std::cout << ... << args) << std::endl;
+            SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
             std::ofstream file(logFile, std::ios::app);
             if (file.is_open()) {
@@ -57,8 +102,10 @@ class Logger {
 
         template <typename ...Args>
         void wlog(Args... args) {
+            SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
             std::wcout.imbue(std::locale("en_US.utf8"));
             (std::wcout << ... << args) << std::endl;
+            SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 
 
             std::wofstream file(logFile, std::ios::app);
@@ -80,6 +127,7 @@ class Logger {
 
         std::string logFile;
         std::ofstream file;
+        HANDLE hConsole;
 
 };
 
@@ -87,13 +135,13 @@ extern Logger logger;
 
 
 #ifdef _DEBUG
-#define LOG(...) logger.log(__VA_ARGS__)
+    #define LOG(...)    logger.log(__VA_ARGS__)
+    #define WLOG(...)   logger.wlog(__VA_ARGS__)
+    #define WARN(...)   logger.warn(__VA_ARGS__)
+    #define ERROR_LOG(...)  logger.error_log(__VA_ARGS__)
 #else
-#define LOG(...)
-#endif
-
-#ifdef _DEBUG
-#define WLOG(...) logger.wlog(__VA_ARGS__)
-#else
-#define WLOG(...)
+    #define LOG(...)
+    #define WLOG(...)
+    #define WARN(...)
+    #define ERROR(...)
 #endif

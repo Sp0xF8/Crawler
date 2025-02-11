@@ -35,7 +35,7 @@ set(BUILD_SHARED_LIBS OFF)
 add_library(WebCrawler STATIC ${CRAWLER_SOURCES})
     
 # Collect public headers
-file(GLOB CRAWLER_HEADERS "src/inc/WebPage.hpp" "src/inc/Tags.hpp")
+file(GLOB CRAWLER_HEADERS "src/inc/WebPage.hpp" "src/inc/Tags.hpp" "src/inc/Logger.hpp")
 
 # Copy header files to output/include
 add_custom_target(copy_headers ALL
