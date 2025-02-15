@@ -143,5 +143,5 @@ extern Logger logger;
     #define LOG(...)
     #define WLOG(...)
     #define WARN(...)
-    #define ERROR(...)
+    #define ERROR_LOG(...)
 #endif
